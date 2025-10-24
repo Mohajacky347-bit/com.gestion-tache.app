@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Infrastructure Gare Fianarantsoa Color Palette */
+    --background: 200 73% 97%; /* Très léger bleu basé sur #D9EFF7 */
+    --foreground: 244 42% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 244 42% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 244 42% 20%;
+
+    /* Primary = violet foncé #4741A6 */
+    --primary: 244 42% 46%;
+    --primary-foreground: 0 0% 98%;
+
+    /* Secondary = bleu moyen #9BBBFC */
+    --secondary: 220 94% 80%;
+    --secondary-foreground: 244 42% 20%;
+
+    /* Muted = bleu très clair #D9EFF7 */
+    --muted: 200 73% 92%;
+    --muted-foreground: 244 20% 50%;
+
+    /* Accent = jaune #F9CE69 */
+    --accent: 45 92% 70%;
+    --accent-foreground: 244 42% 20%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 200 50% 85%;
+    --input: 200 50% 90%;
+    --ring: 244 42% 46%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar colors */
+    --sidebar-background: 244 42% 46%; /* Violet foncé */
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 220 94% 80%; /* Bleu moyen pour actif */
+    --sidebar-primary-foreground: 244 42% 20%;
+    --sidebar-accent: 244 42% 55%; /* Légèrement plus clair pour hover */
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 244 42% 40%;
+    --sidebar-ring: 220 94% 80%;
+
+    /* Status colors */
+    --status-pending: 220 94% 80%; /* Bleu #9BBBFC */
+    --status-paused: 45 92% 70%; /* Jaune #F9CE69 */
+    --status-progress: 244 42% 46%; /* Violet #4741A6 */
+    --status-completed: 120 55% 70%; /* Vert #7DD87D */
+
+    /* Custom gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(244 42% 46%), hsl(244 42% 55%));
+    --gradient-secondary: linear-gradient(135deg, hsl(220 94% 80%), hsl(220 94% 85%));
+    --gradient-accent: linear-gradient(135deg, hsl(45 92% 70%), hsl(45 92% 75%));
+
+    /* Shadows */
+    --shadow-soft: 0 2px 8px -2px hsl(244 42% 46% / 0.1);
+    --shadow-medium: 0 4px 12px -2px hsl(244 42% 46% / 0.15);
+    --shadow-strong: 0 8px 24px -4px hsl(244 42% 46% / 0.2);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    --background: 244 42% 8%;
+    --foreground: 200 73% 92%;
+
+    --card: 244 42% 12%;
+    --card-foreground: 200 73% 92%;
+
+    --popover: 244 42% 12%;
+    --popover-foreground: 200 73% 92%;
+
+    --primary: 220 94% 80%;
+    --primary-foreground: 244 42% 20%;
+
+    --secondary: 244 42% 20%;
+    --secondary-foreground: 200 73% 92%;
+
+    --muted: 244 42% 15%;
+    --muted-foreground: 200 50% 70%;
+
+    --accent: 45 92% 60%;
+    --accent-foreground: 244 42% 20%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 244 42% 20%;
+    --input: 244 42% 15%;
+    --ring: 220 94% 80%;
+
+    --sidebar-background: 244 42% 10%;
+    --sidebar-foreground: 200 73% 92%;
+    --sidebar-primary: 220 94% 80%;
+    --sidebar-primary-foreground: 244 42% 10%;
+    --sidebar-accent: 244 42% 20%;
+    --sidebar-accent-foreground: 200 73% 92%;
+    --sidebar-border: 244 42% 15%;
+    --sidebar-ring: 220 94% 80%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
