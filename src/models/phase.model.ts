@@ -1,85 +1,161 @@
 import { dbPool } from "@/lib/db";
 
 export interface PhaseEntity {
-  idPhase: string;
+  id: string;
+  idTache: string;
   nom: string;
-  description: string;
-  ordre: number;
-  dateDebutPrev: string;
-  dateFinPrev: string;
-  dateDebutReel?: string | null;
-  dateFinReel?: string | null;
-  statut: "planifie" | "en_cours" | "termine" | "annule";
+  description?: string;
+  dureePrevue: number;
+  dateDebut: string;
+  dateFin: string;
+  statut: "En attente" | "En cours" | "Terminé";
 }
 
 export const phaseModel = {
   async findAll(): Promise<PhaseEntity[]> {
-    const [rows] = await dbPool.query(
-      `SELECT idPhase, nom, description, ordre, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut 
-       FROM phases 
-       ORDER BY ordre ASC`
-    );
-    return rows as PhaseEntity[];
+    try {
+      const [rows] = await dbPool.query(
+        `SELECT 
+          id, 
+          idTache, 
+          nom, 
+          description,
+          dureePrevue,
+          dateDebut,
+          dateFin,
+          statut
+         FROM phase 
+         ORDER BY idTache, dateDebut ASC`
+      );
+      
+      const phases = (rows as any[]).map(row => ({
+        id: String(row.id),
+        idTache: String(row.idTache),
+        nom: String(row.nom),
+        description: row.description ? String(row.description) : undefined,
+        dureePrevue: Number(row.dureePrevue),
+        dateDebut: new Date(row.dateDebut).toISOString().split('T')[0],
+        dateFin: new Date(row.dateFin).toISOString().split('T')[0],
+        statut: row.statut as "En attente" | "En cours" | "Terminé"
+      }));
+      
+      return phases;
+    } catch (error) {
+      console.error('Error fetching phases:', error);
+      throw error;
+    }
   },
 
-  async findById(idPhase: string): Promise<PhaseEntity | null> {
-    const [rows] = await dbPool.query(
-      `SELECT idPhase, nom, description, ordre, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut 
-       FROM phases 
-       WHERE idPhase = ? LIMIT 1`,
-      [idPhase]
-    );
-    const arr = rows as PhaseEntity[];
-    return arr.length ? arr[0] : null;
+  async findById(id: string): Promise<PhaseEntity | null> {
+    try {
+      const [rows] = await dbPool.query(
+        `SELECT 
+          id, 
+          idTache, 
+          nom, 
+          description,
+          dureePrevue,
+          dateDebut,
+          dateFin,
+          statut
+         FROM phase 
+         WHERE id = ? LIMIT 1`,
+        [id]
+      );
+      
+      const arr = rows as any[];
+      if (!arr.length) return null;
+      
+      const row = arr[0];
+      return {
+        id: String(row.id),
+        idTache: String(row.idTache),
+        nom: String(row.nom),
+        description: row.description ? String(row.description) : undefined,
+        dureePrevue: Number(row.dureePrevue),
+        dateDebut: new Date(row.dateDebut).toISOString().split('T')[0],
+        dateFin: new Date(row.dateFin).toISOString().split('T')[0],
+        statut: row.statut as "En attente" | "En cours" | "Terminé"
+      };
+    } catch (error) {
+      console.error('Error fetching phase by id:', error);
+      throw error;
+    }
   },
 
-  async findByOrder(ordre: number): Promise<PhaseEntity | null> {
-    const [rows] = await dbPool.query(
-      `SELECT idPhase, nom, description, ordre, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut 
-       FROM phases 
-       WHERE ordre = ? LIMIT 1`,
-      [ordre]
-    );
-    const arr = rows as PhaseEntity[];
-    return arr.length ? arr[0] : null;
+  async create(phase: Omit<PhaseEntity, 'id'>): Promise<PhaseEntity> {
+    try {
+      // Générer un ID automatique
+      const existingPhases = await this.findAll();
+      const lastId = existingPhases.reduce((max, phase) => {
+        const num = parseInt(phase.id.replace('P', '')) || 0;
+        return num > max ? num : max;
+      }, 0);
+      const newId = `P${(lastId + 1).toString().padStart(3, '0')}`;
+
+      const [result] = await dbPool.query(
+        `INSERT INTO phase (id, idTache, nom, description, dureePrevue, dateDebut, dateFin, statut) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newId,
+          phase.idTache,
+          phase.nom,
+          phase.description || null,
+          phase.dureePrevue,
+          phase.dateDebut,
+          phase.dateFin,
+          phase.statut
+        ]
+      );
+      
+      return {
+        id: newId,
+        ...phase
+      };
+    } catch (error) {
+      console.error('Error creating phase:', error);
+      throw error;
+    }
   },
 
-  async create(phase: Omit<PhaseEntity, 'idPhase'>): Promise<string> {
-    const [result] = await dbPool.query(
-      `INSERT INTO phases (nom, description, ordre, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [phase.nom, phase.description, phase.ordre, phase.dateDebutPrev, phase.dateFinPrev, phase.dateDebutReel, phase.dateFinReel, phase.statut]
-    );
-    return (result as any).insertId;
+  async update(id: string, phase: Partial<PhaseEntity>): Promise<boolean> {
+    try {
+      const [result] = await dbPool.query(
+        `UPDATE phase 
+         SET idTache = ?, nom = ?, description = ?, dureePrevue = ?, dateDebut = ?, dateFin = ?, statut = ?
+         WHERE id = ?`,
+        [
+          phase.idTache,
+          phase.nom,
+          phase.description || null,
+          phase.dureePrevue,
+          phase.dateDebut,
+          phase.dateFin,
+          phase.statut,
+          id
+        ]
+      );
+      
+      const updateResult = result as any;
+      return updateResult.affectedRows > 0;
+    } catch (error) {
+      console.error('Error updating phase:', error);
+      throw error;
+    }
   },
 
-  async update(idPhase: string, phase: Partial<Omit<PhaseEntity, 'idPhase'>>): Promise<boolean> {
-    const fields = [];
-    const values = [];
-    
-    Object.entries(phase).forEach(([key, value]) => {
-      if (value !== undefined) {
-        fields.push(`${key} = ?`);
-        values.push(value);
-      }
-    });
-    
-    if (fields.length === 0) return false;
-    
-    values.push(idPhase);
-    const [result] = await dbPool.query(
-      `UPDATE phases SET ${fields.join(', ')} WHERE idPhase = ?`,
-      values
-    );
-    
-    return (result as any).affectedRows > 0;
-  },
-
-  async delete(idPhase: string): Promise<boolean> {
-    const [result] = await dbPool.query(
-      `DELETE FROM phases WHERE idPhase = ?`,
-      [idPhase]
-    );
-    return (result as any).affectedRows > 0;
+  async delete(id: string): Promise<boolean> {
+    try {
+      const [result] = await dbPool.query(
+        `DELETE FROM phase WHERE id = ?`,
+        [id]
+      );
+      
+      const deleteResult = result as any;
+      return deleteResult.affectedRows > 0;
+    } catch (error) {
+      console.error('Error deleting phase:', error);
+      throw error;
+    }
   }
 };

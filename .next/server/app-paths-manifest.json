@@ -1,7 +1,12 @@
 {
+  "/api/absences/route": "app/api/absences/route.js",
+  "/api/employes/route": "app/api/employes/route.js",
   "/api/materiels/route": "app/api/materiels/route.js",
-  "/employes/page": "app/employes/page.js",
-  "/materiels/page": "app/materiels/page.js",
+  "/api/phases/route": "app/api/phases/route.js",
+  "/api/taches/route": "app/api/taches/route.js",
+  "/phases/page": "app/phases/page.js",
   "/taches/page": "app/taches/page.js",
-  "/page": "app/page.js"
+  "/absences/page": "app/absences/page.js",
+  "/employes/page": "app/employes/page.js",
+  "/materiels/page": "app/materiels/page.js"
 }

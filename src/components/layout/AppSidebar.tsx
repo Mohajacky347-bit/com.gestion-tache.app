@@ -39,6 +39,11 @@ const menuItems = [
     icon: CheckSquare 
   },
   { 
+    title: "Gestion des Phases", 
+    url: "/phases", 
+    icon: CheckSquare 
+  },
+  { 
     title: "Gestion des Employés", 
     url: "/employes", 
     icon: Users 

@@ -16,6 +16,51 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
+    "/_not-found/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/_not-found/page.js"
+    ],
+    "/taches/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/taches/page.js"
+    ],
+    "/api/taches/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/taches/route.js"
+    ],
+    "/phases/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/phases/page.js"
+    ],
+    "/api/phases/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/phases/route.js"
+    ],
+    "/api/employes/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/employes/route.js"
+    ],
+    "/api/materiels/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/materiels/route.js"
+    ],
+    "/absences/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/absences/page.js"
+    ],
+    "/api/absences/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/absences/route.js"
+    ],
     "/employes/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -25,16 +70,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/materiels/page.js"
-    ],
-    "/api/materiels/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/materiels/route.js"
-    ],
-    "/taches/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/taches/page.js"
     ]
   }
 }
