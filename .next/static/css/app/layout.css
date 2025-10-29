@@ -1119,10 +1119,6 @@ video {
 .w-px {
   width: 1px;
 }
-.w-fit {
-  width: -moz-fit-content;
-  width: fit-content;
-}
 .min-w-0 {
   min-width: 0px;
 }
@@ -3348,10 +3344,6 @@ video {
 
   .sm\:max-w-sm {
     max-width: 24rem;
-  }
-
-  .sm\:max-w-\[550px\] {
-    max-width: 550px;
   }
 
   .sm\:grid-cols-2 {
