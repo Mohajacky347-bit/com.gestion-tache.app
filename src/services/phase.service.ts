@@ -20,4 +20,8 @@ export const phaseService = {
   async delete(id: string): Promise<boolean> {
     return phaseModel.delete(id);
   },
+
+  async listWithTaches(): Promise<(PhaseEntity & { tache?: any })[]> {
+  return phaseModel.findAllWithTaches();
+},
 };
