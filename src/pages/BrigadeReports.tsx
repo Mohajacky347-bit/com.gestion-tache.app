@@ -24,7 +24,8 @@ import {
   Edit,
   Trash2,
   AlertTriangle,
-  X
+  X,
+  Image
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,6 +111,7 @@ export default function Rapports() {
     photoUrl: ""
   });
   const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -166,7 +168,8 @@ export default function Rapports() {
         idPhase: rapport.idPhase,
         photoUrl: rapport.photoUrl
       });
-      setPhotos([]); // Réinitialiser les photos pour l'édition
+      setPhotos([]);
+      setPhotoPreviews(rapport.photoUrl ? [rapport.photoUrl] : []);
     } else if (type === "add") {
       setFormData({
         description: "",
@@ -176,6 +179,7 @@ export default function Rapports() {
         photoUrl: ""
       });
       setPhotos([]);
+      setPhotoPreviews([]);
     }
   };
 
@@ -189,9 +193,10 @@ export default function Rapports() {
       photoUrl: ""
     });
     setPhotos([]);
+    setPhotoPreviews([]);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     
     // Validation : maximum 5 photos
@@ -207,27 +212,42 @@ export default function Rapports() {
       return;
     }
 
+    // Convertir les fichiers en prévisualisations Base64
+    const newPreviews = await Promise.all(
+      files.map(file => convertToBase64(file))
+    );
+
     setPhotos(prev => [...prev, ...files]);
+    setPhotoPreviews(prev => [...prev, ...newPreviews]);
   };
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
     try {
-      // Validation des photos obligatoires
-      if (photos.length === 0) {
+      // CORRECTION : Pas de validation photo pour la suppression
+      if (dialog?.type === "delete") {
+        // Passer directement à la suppression sans validation photo
+      } 
+      // Validation des photos obligatoires seulement pour l'ajout
+      else if (dialog?.type === "add" && photos.length === 0) {
+        showAlert("error", "Au moins une photo est obligatoire");
+        return;
+      }
+      // Pour l'édition, les photos existantes sont déjà sauvegardées
+      else if (dialog?.type === "edit" && photos.length === 0 && !formData.photoUrl) {
         showAlert("error", "Au moins une photo est obligatoire");
         return;
       }
 
       setIsSubmitting(true);
 
-      // Convertir la première photo en Base64
-      const photoBase64 = await convertToBase64(photos[0]);
-
       if (dialog?.type === "add") {
+        // Convertir la première photo en Base64
+        const photoBase64 = photoPreviews[0];
         const rapportData = {
           ...formData,
           validation: "en_attente" as const,
@@ -248,8 +268,8 @@ export default function Rapports() {
         showAlert("success", "Rapport soumis avec succès");
 
       } else if (dialog?.type === "edit" && dialog.rapport) {
-        // Pour l'édition, garder l'ancienne photo si aucune nouvelle n'est sélectionnée
-        const photoUrl = photos.length > 0 ? await convertToBase64(photos[0]) : formData.photoUrl;
+        // Pour l'édition, utiliser nouvelle photo ou ancienne
+        const photoUrl = photoPreviews.length > 0 ? photoPreviews[0] : formData.photoUrl;
         
         const rapportData = {
           ...formData,
@@ -421,6 +441,7 @@ export default function Rapports() {
                     <TableHead>Description</TableHead>
                     <TableHead>Avancement</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Photo</TableHead>
                     <TableHead>Validation</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -428,7 +449,7 @@ export default function Rapports() {
                 <TableBody>
                   {filteredRapports.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
                         Aucun rapport trouvé
                       </TableCell>
                     </TableRow>
@@ -468,6 +489,19 @@ export default function Rapports() {
                           <Calendar className="h-3 w-3" />
                           {new Date(rapport.dateRapport).toLocaleDateString()}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {rapport.photoUrl ? (
+                          <div className="flex items-center gap-2">
+                            <Image className="h-4 w-4 text-green-500" />
+                            <span className="text-sm text-muted-foreground">Avec photo</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Image className="h-4 w-4 text-red-500" />
+                            <span className="text-sm text-muted-foreground">Sans photo</span>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={validationVariants[rapport.validation]}>
@@ -582,63 +616,80 @@ export default function Rapports() {
             </div>
             
             <div className="space-y-2">
-              <Label>Photos *</Label>
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-    <p className="text-sm text-muted-foreground mb-2">
-      Sélectionnez au moins une photo pour prouver l'avancement des travaux
-    </p>
-    <p className="text-xs text-muted-foreground mb-3">
-      Maximum 5 photos, 5MB par photo
-    </p>
-    
-    {/* Input file caché mais fonctionnel */}
-    <Input
-      type="file"
-      accept="image/*"
-      multiple
-      onChange={handlePhotoUpload}
-      className="hidden"
-      id="photo-upload"
-    />
-    
-    {/* Bouton stylisé qui déclenche l'input */}
-    <Label htmlFor="photo-upload" className="cursor-pointer">
-      <Button 
-        variant="outline" 
-        size="sm" 
-        type="button"
-        onClick={() => document.getElementById('photo-upload')?.click()}
-      >
-        Sélectionner des photos
-      </Button>
-    </Label>
-  </div>
-              
-              {photos.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Photos sélectionnées ({photos.length}/5):</p>
-                  <div className="flex flex-wrap gap-2">
-                    {photos.map((photo, index) => (
-                      <div key={index} className="flex items-center gap-2 bg-muted p-2 rounded border">
-                        <FileText className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm max-w-32 truncate">{photo.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({(photo.size / 1024 / 1024).toFixed(1)}MB)
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removePhoto(index)}
-                          className="h-6 w-6 p-0 hover:bg-red-100"
-                        >
-                          <X className="h-3 w-3 text-red-500" />
-                        </Button>
-                      </div>
-                    ))}
+              <Label htmlFor="photo-upload">Photos *</Label>
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                
+                {photoPreviews.length === 0 ? (
+                  <div className="py-8">
+                    <Upload className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Glissez-déposez vos photos ou
+                    </p>
+                    <Label htmlFor="photo-upload" className="cursor-pointer">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        type="button"
+                        className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Sélectionner des photos
+                      </Button>
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Maximum 5 photos, 5MB par photo
+                    </p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Photos sélectionnées ({photoPreviews.length}/5)
+                      </span>
+                      <Label htmlFor="photo-upload" className="cursor-pointer">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          type="button"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Ajouter plus
+                        </Button>
+                      </Label>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-40 overflow-y-auto">
+                      {photoPreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={preview} 
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-20 object-cover rounded-lg border shadow-sm"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => removePhoto(index)}
+                            className="absolute -top-2 -right-2 h-6 w-6 p-0 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <div className="text-xs text-center mt-1 truncate">
+                            {photos[index]?.name || `Photo ${index + 1}`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             
             <DialogFooter>
@@ -651,7 +702,7 @@ export default function Rapports() {
               </Button>
               <Button 
                 onClick={handleSubmit}
-                disabled={isSubmitting || photos.length === 0}
+                disabled={isSubmitting || (dialog?.type === "add" && photoPreviews.length === 0) || (dialog?.type === "edit" && photoPreviews.length === 0 && !formData.photoUrl)}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
                 {isSubmitting ? (

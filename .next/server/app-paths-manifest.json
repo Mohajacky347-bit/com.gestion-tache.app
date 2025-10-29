@@ -1,6 +1,7 @@
 {
   "/api/rapports/route": "app/api/rapports/route.js",
   "/api/phases/with-taches/route": "app/api/phases/with-taches/route.js",
+  "/api/rapports/[id]/route": "app/api/rapports/[id]/route.js",
   "/brigade/page": "app/brigade/page.js",
   "/brigade/rapports/page": "app/brigade/rapports/page.js"
 }
