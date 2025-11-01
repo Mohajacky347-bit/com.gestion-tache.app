@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 export interface PhotoEntity {
-  id: string;
+  id: string; // Reste en string pour la compatibilité
   idRapport: string;
   nom_fichier: string;
   ordre: number;
@@ -12,33 +12,41 @@ export interface PhotoEntity {
 
 export const photoService = {
   async createPhotos(idRapport: string, photos: { nom_fichier: string; ordre: number }[]): Promise<PhotoEntity[]> {
-    try {
-      const createdPhotos: PhotoEntity[] = [];
+  try {
+    const createdPhotos: PhotoEntity[] = [];
+    
+    for (const [index, photo] of photos.entries()) {
+      console.log(`Creating photo ${index + 1}/${photos.length} for rapport ${idRapport}`);
       
-      for (const [index, photo] of photos.entries()) {
-        // Générer un ID unique pour la photo
-        const photoId = `PH${Date.now()}${index}`.slice(0, 10);
-        
-        const [result] = await dbPool.query(
-          `INSERT INTO rapport_photos (id, idRapport, nom_fichier, ordre) VALUES (?, ?, ?, ?)`,
-          [photoId, idRapport, photo.nom_fichier, photo.ordre]
-        );
-        
-        createdPhotos.push({
-          id: photoId,
-          idRapport,
-          nom_fichier: photo.nom_fichier,
-          ordre: photo.ordre,
-          created_at: new Date().toISOString()
-        });
-      }
+      // Insérer sans spécifier l'ID (la base le génère automatiquement)
+      const [result] = await dbPool.query(
+        `INSERT INTO rapport_photos (idRapport, nom_fichier, ordre) VALUES (?, ?, ?)`,
+        [idRapport, photo.nom_fichier, photo.ordre]
+      );
       
-      return createdPhotos;
-    } catch (error) {
-      console.error('Error creating photos:', error);
-      throw error;
+      // Récupérer l'ID généré automatiquement
+      const insertResult = result as any;
+      const photoId = insertResult.insertId.toString();
+      
+      console.log(`Photo created with auto-generated ID: ${photoId}`);
+      
+      createdPhotos.push({
+        id: photoId,
+        idRapport,
+        nom_fichier: photo.nom_fichier,
+        ordre: photo.ordre,
+        created_at: new Date().toISOString()
+      });
     }
-  },
+    
+    console.log(`Successfully created ${createdPhotos.length} photos for rapport ${idRapport}`);
+    return createdPhotos;
+  } catch (error) {
+    console.error('Error creating photos:', error);
+    throw error;
+  }
+},
+
 
   async getByRapport(idRapport: string): Promise<PhotoEntity[]> {
     try {
