@@ -1,4 +1,5 @@
 import { dbPool } from "@/lib/db";
+import { PhotoEntity, photoService } from "@/services/photo.service";
 
 export interface RapportEntity {
   id: string;
@@ -168,5 +169,108 @@ export const rapportModel = {
       console.error('Error deleting rapport:', error);
       throw error;
     }
+  },
+
+  //Methode pour le rapport chef section
+  async updateValidation(id: string, validation: "En attente" | "À réviser" | "Approuvé", commentaire?: string): Promise<boolean> {
+  try {
+    const [result] = await dbPool.query(
+      `UPDATE rapport 
+       SET validation = ?, commentaire = ?
+       WHERE id = ?`,
+      [
+        this.mapValidationToDB(validation),
+        commentaire || null,
+        id
+      ]
+    );
+    
+    const updateResult = result as any;
+    return updateResult.affectedRows > 0;
+  } catch (error) {
+    console.error('Error updating rapport validation:', error);
+    throw error;
   }
+},
+
+async createWithPhotos(rapport: Omit<RapportEntity, 'id'>, photos: { buffer: Buffer; originalName: string }[]): Promise<{ rapport: RapportEntity; photos: PhotoEntity[] }> {
+    try {
+      // Créer d'abord le rapport
+      const rapportCree = await this.create(rapport);
+      
+      // Sauvegarder les photos physiquement
+      const savedFiles = await photoService.savePhysicalFiles(rapportCree.id, photos);
+      
+      // Créer les entrées en base de données
+      const photosCreees = await photoService.createPhotos(rapportCree.id, savedFiles);
+      
+      return {
+        rapport: rapportCree,
+        photos: photosCreees
+      };
+    } catch (error) {
+      console.error('Error creating rapport with photos:', error);
+      throw error;
+    }
+  },
+
+  async updateWithPhotos(id: string, rapport: Partial<RapportEntity>, newPhotos: { buffer: Buffer; originalName: string }[]): Promise<boolean> {
+    try {
+      // Mettre à jour le rapport
+      const success = await this.update(id, rapport);
+      if (!success) return false;
+      
+      if (newPhotos.length > 0) {
+        // Supprimer les anciennes photos
+        await photoService.deleteByRapport(id);
+        
+        // Sauvegarder les nouvelles photos
+        const savedFiles = await photoService.savePhysicalFiles(id, newPhotos);
+        await photoService.createPhotos(id, savedFiles);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating rapport with photos:', error);
+      throw error;
+    }
+  },
+
+  async findByIdWithPhotos(id: string): Promise<(RapportEntity & { photos: PhotoEntity[] }) | null> {
+    try {
+      const rapport = await this.findById(id);
+      if (!rapport) return null;
+      
+      const photos = await photoService.getByRapport(id);
+      
+      return {
+        ...rapport,
+        photos
+      };
+    } catch (error) {
+      console.error('Error fetching rapport with photos:', error);
+      throw error;
+    }
+  },
+
+  async findAllWithPhotos(): Promise<(RapportEntity & { photos: PhotoEntity[] })[]> {
+    try {
+      const rapports = await this.findAll();
+      const rapportsWithPhotos: (RapportEntity & { photos: PhotoEntity[] })[] = [];
+      
+      for (const rapport of rapports) {
+        const photos = await photoService.getByRapport(rapport.id);
+        rapportsWithPhotos.push({
+          ...rapport,
+          photos
+        });
+      }
+      
+      return rapportsWithPhotos;
+    } catch (error) {
+      console.error('Error fetching rapports with photos:', error);
+      throw error;
+    }
+  }
+
 };

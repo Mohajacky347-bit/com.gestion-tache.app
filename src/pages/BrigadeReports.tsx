@@ -69,6 +69,11 @@ interface Rapport {
   idPhase: string;
   validation: "en_attente" | "a_reviser" | "approuve";
   phase?: Phase;
+  photos?: {
+    id: string;
+    nom_fichier: string;
+    ordre: number;
+  }[];
 }
 
 const validationLabels = {
@@ -94,6 +99,11 @@ const convertToBase64 = (file: File): Promise<string> => {
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = error => reject(error);
   });
+};
+
+// Fonction utilitaire pour générer les URLs des images
+const getImageUrl = (rapportId: string, nomFichier: string) => {
+  return `/api/images/rapports/${rapportId}/${nomFichier}`;
 };
 
 export default function Rapports() {
@@ -169,7 +179,15 @@ export default function Rapports() {
         photoUrl: rapport.photoUrl
       });
       setPhotos([]);
-      setPhotoPreviews(rapport.photoUrl ? [rapport.photoUrl] : []);
+      // Pour l'édition, on garde les prévisualisations des photos existantes
+      if (rapport.photos && rapport.photos.length > 0) {
+        const previews = rapport.photos.map(photo => 
+          getImageUrl(rapport.id, photo.nom_fichier)
+        );
+        setPhotoPreviews(previews);
+      } else {
+        setPhotoPreviews(rapport.photoUrl ? [rapport.photoUrl] : []);
+      }
     } else if (type === "add") {
       setFormData({
         description: "",
@@ -180,6 +198,16 @@ export default function Rapports() {
       });
       setPhotos([]);
       setPhotoPreviews([]);
+    } else if (type === "details" && rapport) {
+      // Pour les détails, on précharge les images existantes
+      if (rapport.photos && rapport.photos.length > 0) {
+        const previews = rapport.photos.map(photo => 
+          getImageUrl(rapport.id, photo.nom_fichier)
+        );
+        setPhotoPreviews(previews);
+      } else {
+        setPhotoPreviews(rapport.photoUrl ? [rapport.photoUrl] : []);
+      }
     }
   };
 
@@ -228,17 +256,12 @@ export default function Rapports() {
 
   const handleSubmit = async () => {
     try {
-      // CORRECTION : Pas de validation photo pour la suppression
-      if (dialog?.type === "delete") {
-        // Passer directement à la suppression sans validation photo
-      } 
-      // Validation des photos obligatoires seulement pour l'ajout
-      else if (dialog?.type === "add" && photos.length === 0) {
+      // Validation des photos
+      if (dialog?.type === "add" && photos.length === 0) {
         showAlert("error", "Au moins une photo est obligatoire");
         return;
       }
-      // Pour l'édition, les photos existantes sont déjà sauvegardées
-      else if (dialog?.type === "edit" && photos.length === 0 && !formData.photoUrl) {
+      if (dialog?.type === "edit" && photos.length === 0 && !dialog.rapport?.photos?.length) {
         showAlert("error", "Au moins une photo est obligatoire");
         return;
       }
@@ -246,45 +269,53 @@ export default function Rapports() {
       setIsSubmitting(true);
 
       if (dialog?.type === "add") {
-        // Convertir la première photo en Base64
-        const photoBase64 = photoPreviews[0];
-        const rapportData = {
-          ...formData,
-          validation: "en_attente" as const,
-          photoUrl: photoBase64
-        };
+        // Préparer les données pour l'envoi
+        const submitFormData = new FormData();
+        submitFormData.append('description', formData.description || '');
+        submitFormData.append('dateRapport', formData.dateRapport || '');
+        submitFormData.append('avancement', formData.avancement?.toString() || '0');
+        submitFormData.append('idPhase', formData.idPhase || '');
         
-        const response = await fetch("/api/rapports", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(rapportData),
+        // Ajouter toutes les photos
+        photos.forEach(photo => {
+          submitFormData.append('photos', photo);
         });
 
-        if (!response.ok) throw new Error("Erreur lors de l'ajout");
+        const response = await fetch("/api/rapports", {
+          method: "POST",
+          body: submitFormData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erreur lors de l'ajout");
+        }
         
         await fetchData();
         showAlert("success", "Rapport soumis avec succès");
 
       } else if (dialog?.type === "edit" && dialog.rapport) {
-        // Pour l'édition, utiliser nouvelle photo ou ancienne
-        const photoUrl = photoPreviews.length > 0 ? photoPreviews[0] : formData.photoUrl;
+        // Préparer les données pour la modification
+        const submitFormData = new FormData();
+        submitFormData.append('description', formData.description || '');
+        submitFormData.append('dateRapport', formData.dateRapport || '');
+        submitFormData.append('avancement', formData.avancement?.toString() || '0');
+        submitFormData.append('idPhase', formData.idPhase || '');
         
-        const rapportData = {
-          ...formData,
-          photoUrl
-        };
+        // Ajouter les nouvelles photos seulement (les anciennes sont déjà en base)
+        photos.forEach(photo => {
+          submitFormData.append('photos', photo);
+        });
 
         const response = await fetch(`/api/rapports/${dialog.rapport.id}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(rapportData),
+          body: submitFormData,
         });
 
-        if (!response.ok) throw new Error("Erreur lors de la modification");
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erreur lors de la modification");
+        }
         
         await fetchData();
         showAlert("success", "Rapport modifié avec succès");
@@ -294,7 +325,10 @@ export default function Rapports() {
           method: "DELETE",
         });
 
-        if (!response.ok) throw new Error("Erreur lors de la suppression");
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erreur lors de la suppression");
+        }
         
         await fetchData();
         showAlert("success", "Rapport supprimé avec succès");
@@ -302,7 +336,8 @@ export default function Rapports() {
       
       closeDialog();
     } catch (error) {
-      showAlert("error", "Erreur lors de l'opération");
+      console.error('Submit error:', error);
+      showAlert("error", error instanceof Error ? error.message : "Erreur lors de l'opération");
     } finally {
       setIsSubmitting(false);
     }
@@ -441,7 +476,7 @@ export default function Rapports() {
                     <TableHead>Description</TableHead>
                     <TableHead>Avancement</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Photo</TableHead>
+                    <TableHead>Photos</TableHead>
                     <TableHead>Validation</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -491,7 +526,14 @@ export default function Rapports() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {rapport.photoUrl ? (
+                        {rapport.photos && rapport.photos.length > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <Image className="h-4 w-4 text-green-500" />
+                            <span className="text-sm text-muted-foreground">
+                              {rapport.photos.length} photo(s)
+                            </span>
+                          </div>
+                        ) : rapport.photoUrl ? (
                           <div className="flex items-center gap-2">
                             <Image className="h-4 w-4 text-green-500" />
                             <span className="text-sm text-muted-foreground">Avec photo</span>
@@ -702,7 +744,7 @@ export default function Rapports() {
               </Button>
               <Button 
                 onClick={handleSubmit}
-                disabled={isSubmitting || (dialog?.type === "add" && photoPreviews.length === 0) || (dialog?.type === "edit" && photoPreviews.length === 0 && !formData.photoUrl)}
+                disabled={isSubmitting || (dialog?.type === "add" && photoPreviews.length === 0) || (dialog?.type === "edit" && photoPreviews.length === 0 && !dialog.rapport?.photos?.length)}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
                 {isSubmitting ? (
@@ -767,14 +809,25 @@ export default function Rapports() {
                   <p className="font-medium">{dialog.rapport.avancement}%</p>
                 </div>
               </div>
-              {dialog.rapport.photoUrl && (
+              {dialog.rapport.photos && dialog.rapport.photos.length > 0 && (
                 <div>
-                  <Label className="text-sm text-muted-foreground">Photo du travail</Label>
-                  <img 
-                    src={dialog.rapport.photoUrl} 
-                    alt="Photo du rapport" 
-                    className="mt-2 rounded-lg max-w-full max-h-64 object-contain border"
-                  />
+                  <Label className="text-sm text-muted-foreground">
+                    Photos du travail ({dialog.rapport.photos.length})
+                  </Label>
+                  <div className="space-y-3 mt-2">
+                    {dialog.rapport.photos.map((photo, index) => (
+                      <div key={photo.id} className="border rounded-lg p-2">
+                        <img 
+                          src={getImageUrl(dialog.rapport!.id, photo.nom_fichier)}
+                          alt={`Photo ${index + 1} du rapport`}
+                          className="rounded-lg max-w-full max-h-64 object-contain mx-auto"
+                        />
+                        <p className="text-xs text-center text-muted-foreground mt-1">
+                          Photo {index + 1}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

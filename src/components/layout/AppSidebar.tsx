@@ -58,6 +58,11 @@ const menuItems = [
     url: "/absences", 
     icon: Calendar 
   },
+  { 
+    title: "Gestion des Absences", 
+    url: "/rapports", 
+    icon: Calendar 
+  },
 ];
 
 export function AppSidebar() {
