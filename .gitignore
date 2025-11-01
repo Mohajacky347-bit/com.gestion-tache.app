@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Ignorer dossier .next
+.next/
+node_modules/
+.env
+
+# Ignorer les uploads utilisateurs
+/storage/uploads

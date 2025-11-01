@@ -11,6 +11,19 @@ export interface PhaseEntity {
   statut: "En attente" | "En cours" | "Terminé";
 }
 
+const mapStatut = (statutDB: string): "En attente" | "En cours" | "Terminé" => {
+  switch (statutDB) {
+    case "En attente": return "En attente";
+    case "En cours": return "En cours";
+    case "Terminé": return "Terminé";
+    default: return "En attente";
+  }
+};
+
+const mapStatutToDB = (statut: "En attente" | "En cours" | "Terminé"): string => {
+  return statut; // Pas besoin de mapping car les noms correspondent
+};
+
 export const phaseModel = {
   async findAll(): Promise<PhaseEntity[]> {
     try {
@@ -157,5 +170,48 @@ export const phaseModel = {
       console.error('Error deleting phase:', error);
       throw error;
     }
+  },
+
+  //Methode pour lier avec le rapport
+  async findAllWithTaches(): Promise<(PhaseEntity & { tache?: any })[]> {
+  try {
+    const [rows] = await dbPool.query(
+      `SELECT 
+        p.id, 
+        p.idTache,
+        p.nom, 
+        p.description,
+        p.dureePrevue,
+        p.dateDebut,
+        p.dateFin,
+        p.statut,
+        t.description as tache_description
+       FROM phase p
+       LEFT JOIN tache t ON p.idTache = t.id
+       ORDER BY p.idTache, p.dateDebut ASC`
+    );
+    
+    const phases = (rows as any[]).map(row => ({
+      id: String(row.id),
+      idTache: String(row.idTache),
+      nom: String(row.nom),
+      description: row.description ? String(row.description) : undefined,
+      dureePrevue: Number(row.dureePrevue),
+      dateDebut: new Date(row.dateDebut).toISOString().split('T')[0],
+      dateFin: new Date(row.dateFin).toISOString().split('T')[0],
+      statut: row.statut as "En attente" | "En cours" | "Terminé",
+      tache: row.idTache ? {
+        id: row.idTache,
+        description: row.tache_description
+      } : undefined
+    }));
+    
+    return phases;
+  } catch (error) {
+    console.error('Error fetching phases with taches:', error);
+    throw error;
   }
+},
+
 };
+
