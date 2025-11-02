@@ -59,7 +59,7 @@ const menuItems = [
     icon: Calendar 
   },
   { 
-    title: "Gestion des Absences", 
+    title: "Gestion des Rapports", 
     url: "/rapports", 
     icon: Calendar 
   },

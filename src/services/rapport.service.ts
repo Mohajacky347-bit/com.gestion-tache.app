@@ -37,5 +37,9 @@ export const rapportService = {
 
   async listWithPhotos(): Promise<(RapportEntity & { photos: PhotoEntity[] })[]> {
     return rapportModel.findAllWithPhotos();
+  },
+
+  async updateValidation(id: string, validation: "En attente" | "À réviser" | "Approuvé", commentaire?: string): Promise<boolean> {
+    return rapportModel.updateValidation(id, validation, commentaire);
   }
 };

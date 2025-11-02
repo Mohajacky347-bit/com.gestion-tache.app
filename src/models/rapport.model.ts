@@ -29,6 +29,10 @@ const mapValidationToDB = (validation: "en_attente" | "a_reviser" | "approuve"):
   }
 };
 
+const mapValidationChefToDB = (validation: "En attente" | "À réviser" | "Approuvé"): string => {
+  return validation; // Les noms correspondent déjà
+};
+
 export const rapportModel = {
   async findAll(): Promise<RapportEntity[]> {
     try {
@@ -174,12 +178,15 @@ export const rapportModel = {
   //Methode pour le rapport chef section
   async updateValidation(id: string, validation: "En attente" | "À réviser" | "Approuvé", commentaire?: string): Promise<boolean> {
   try {
+    // Utilisez la nouvelle fonction pour la page chef
+    const validationDB = mapValidationChefToDB(validation);
+    
     const [result] = await dbPool.query(
       `UPDATE rapport 
        SET validation = ?, commentaire = ?
        WHERE id = ?`,
       [
-        this.mapValidationToDB(validation),
+        validationDB,
         commentaire || null,
         id
       ]

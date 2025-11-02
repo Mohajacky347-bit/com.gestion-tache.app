@@ -22,9 +22,10 @@ export async function GET(request: NextRequest) {
       ORDER BY r.dateRapport DESC
     `);
 
-    // Pour chaque rapport, récupérer les employés associés via la tâche
+    // Pour chaque rapport, récupérer les employés ET les photos
     const rapportsAvecEmployes = await Promise.all(
       (rapportsRows as any[]).map(async (rapport) => {
+        // Récupérer les employés
         const [employesRows] = await dbPool.query(`
           SELECT 
             e.id,
@@ -35,6 +36,17 @@ export async function GET(request: NextRequest) {
           INNER JOIN tache_employe te ON e.id = te.idEmploye
           WHERE te.idTache = ?
         `, [rapport.idTache]);
+
+        // Récupérer les photos (nouveau système)
+        const [photosRows] = await dbPool.query(`
+          SELECT 
+            id,
+            nom_fichier,
+            ordre
+          FROM rapport_photos 
+          WHERE idRapport = ?
+          ORDER BY ordre ASC
+        `, [rapport.id]);
 
         return {
           id: rapport.id,
@@ -58,6 +70,11 @@ export async function GET(request: NextRequest) {
             nom: emp.nom,
             prenom: emp.prenom,
             fonction: emp.fonction
+          })),
+          photos: (photosRows as any[]).map(photo => ({
+            id: photo.id.toString(),
+            nom_fichier: photo.nom_fichier,
+            ordre: photo.ordre
           }))
         };
       })
