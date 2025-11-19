@@ -3,11 +3,12 @@
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { BrigadeSidebar } from "./BrigadeSidebar";
 import { Button } from "@/components/ui/button";
-import { Bell, LogOut, User } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface BrigadeLayoutProps {
   children: React.ReactNode;
@@ -38,12 +39,7 @@ export function BrigadeLayout({ children }: BrigadeLayoutProps) {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-accent text-xs flex items-center justify-center text-accent-foreground font-bold">
-                  2
-                </span>
-              </Button>
+              <NotificationBell role="chef_brigade" />
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

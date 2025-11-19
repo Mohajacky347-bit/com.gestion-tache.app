@@ -3,7 +3,7 @@
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Button } from "@/components/ui/button";
-import { Bell } from "lucide-react";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -26,12 +26,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-accent text-xs flex items-center justify-center text-accent-foreground font-bold">
-                  3
-                </span>
-              </Button>
+              <NotificationBell role="chef_section" />
             </div>
           </header>
 

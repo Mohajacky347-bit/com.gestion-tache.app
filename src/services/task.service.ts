@@ -1,4 +1,5 @@
 import { taskModel, TaskEntity, PhaseEntity } from "@/models/task.model";
+import { notificationService } from "@/services/notification.service";
 
 export interface TaskWithDetails {
   id: string;
@@ -133,6 +134,20 @@ export const taskService = {
     
     await taskModel.createPhases(createdTask.id, phaseEntities);
     
+    try {
+      await notificationService.createForRole({
+        title: "Nouvelle tâche ajoutée",
+        message: `La tâche "${data.title}" a été planifiée par le chef de section.`,
+        targetRole: "chef_brigade",
+        payload: {
+          taskId: createdTask.id,
+          redirectTo: `/brigade/taches/${createdTask.id}`,
+        },
+      });
+    } catch (error) {
+      console.error("Impossible de notifier le chef de brigade:", error);
+    }
+
     return {
       ...data,
       id: createdTask.id

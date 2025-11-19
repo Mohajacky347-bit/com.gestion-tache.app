@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useSearchParams } from "next/navigation";
 
 interface Employe {
   id: string;
@@ -107,10 +108,20 @@ export default function RapportsChef() {
   const [dialog, setDialog] = useState<{ type: "details" | "revision"; rapport?: Rapport } | null>(null);
   const [commentaire, setCommentaire] = useState("");
   const [photoIndex, setPhotoIndex] = useState(0);
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const filtreParam = searchParams.get("filtre");
+    const validFilters: FiltreType[] = ["tous", "En attente", "À réviser", "Approuvé"];
+
+    if (filtreParam && validFilters.includes(filtreParam as FiltreType)) {
+      setFiltreActif(filtreParam as FiltreType);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (alert) {

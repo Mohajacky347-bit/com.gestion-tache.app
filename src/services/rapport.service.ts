@@ -1,5 +1,7 @@
 import { rapportModel, RapportEntity } from "@/models/rapport.model";
 import { PhotoEntity } from "./photo.service";
+import { notificationService } from "@/services/notification.service";
+import { phaseModel } from "@/models/phase.model";
 
 export const rapportService = {
   async list(): Promise<RapportEntity[]> {
@@ -24,7 +26,29 @@ export const rapportService = {
 
   // Pour gérer les photo
   async createWithPhotos(rapport: Omit<RapportEntity, 'id'>, photos: { buffer: Buffer; originalName: string }[]): Promise<{ rapport: RapportEntity; photos: PhotoEntity[] }> {
-    return rapportModel.createWithPhotos(rapport, photos);
+    const result = await rapportModel.createWithPhotos(rapport, photos);
+
+    try {
+      const phase = await phaseModel.findById(result.rapport.idPhase);
+      await notificationService.createForRole({
+        title: "Rapport soumis",
+        message: phase
+          ? `Un nouveau rapport a été soumis pour ${phase.nom}.`
+          : `Un nouveau rapport (${result.rapport.id}) a été soumis.`,
+        targetRole: "chef_section",
+        payload: {
+          rapportId: result.rapport.id,
+          phaseId: result.rapport.idPhase,
+          taskId: phase?.idTache,
+          redirectTo: "/rapports",
+          filter: "En attente",
+        },
+      });
+    } catch (error) {
+      console.error("Impossible de notifier le chef de section (rapport):", error);
+    }
+
+    return result;
   },
 
   async updateWithPhotos(id: string, rapport: Partial<RapportEntity>, newPhotos: { buffer: Buffer; originalName: string }[]): Promise<boolean> {

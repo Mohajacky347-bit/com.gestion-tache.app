@@ -6,8 +6,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    // ATTENDRE les params d'abord
-    const { id } = await params;
+    const { id } = params;
     
     const body = await request.json();
     const { validation, commentaire } = body;
