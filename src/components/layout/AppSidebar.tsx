@@ -3,12 +3,21 @@
 import { useState } from "react";
 import { 
   LayoutDashboard, 
-  CheckSquare, 
+  ClipboardList,
+  GitBranch,
   Users, 
   Wrench, 
-  Calendar,
+  CalendarRange,
+  FileText,
   Bell,
-  LogOut
+  LogOut,
+  ChevronDown,
+  ChevronRight,
+  UserCircle,
+  Shield,
+  Layers,
+  Crown,
+  LucideIcon
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -27,7 +36,20 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const menuItems = [
+type MenuChild = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+};
+
+type MenuItem = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  children?: MenuChild[];
+};
+
+const menuItems: MenuItem[] = [
   { 
     title: "Dashboard", 
     url: "/", 
@@ -36,17 +58,24 @@ const menuItems = [
   { 
     title: "Gestion des Tâches", 
     url: "/taches", 
-    icon: CheckSquare 
+    icon: ClipboardList 
   },
   { 
     title: "Gestion des Phases", 
     url: "/phases", 
-    icon: CheckSquare 
+    icon: GitBranch 
   },
-  { 
-    title: "Gestion des Employés", 
-    url: "/employes", 
-    icon: Users 
+  // Bloc spécial pour la gestion des employés avec sous-menu
+  {
+    title: "Gestion des Employés",
+    url: "/employes",
+    icon: Users,
+    children: [
+      { title: "Employé", url: "/employes", icon: UserCircle },
+      { title: "Brigade", url: "/brigades", icon: Shield },
+      { title: "Équipe", url: "/equipes", icon: Layers },
+      { title: "Chef de brigade", url: "/chefs-brigade", icon: Crown },
+    ],
   },
   { 
     title: "Gestion des Matériels", 
@@ -56,12 +85,12 @@ const menuItems = [
   { 
     title: "Gestion des Absences", 
     url: "/absences", 
-    icon: Calendar 
+    icon: CalendarRange 
   },
   { 
     title: "Gestion des Rapports", 
     url: "/rapports", 
-    icon: Calendar 
+    icon: FileText 
   },
 ];
 
@@ -71,6 +100,7 @@ export function AppSidebar() {
   const currentPath = usePathname();
   const { logout } = useAuth();
   const router = useRouter();
+  const [openEmployees, setOpenEmployees] = useState<boolean>(true);
 
   const handleLogout = () => {
     logout();
@@ -110,16 +140,91 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className="transition-smooth">
-                    <Link href={item.url} className={getNavClass(item.url)}>
-                      <item.icon className="h-5 w-5" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {menuItems.map((item) => {
+                if ("children" in item) {
+                  const isParentActive =
+                    currentPath.startsWith("/employes") ||
+                    currentPath.startsWith("/brigades") ||
+                    currentPath.startsWith("/equipes") ||
+                    currentPath.startsWith("/chefs-brigade");
+
+                  const handleToggle = () => setOpenEmployees((prev) => !prev);
+
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <div
+                        className={`flex items-center rounded-md ${isParentActive
+                            ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                      >
+                        <Link
+                          href={item.url}
+                          className="flex flex-1 items-center gap-2 px-3 py-2 text-sm transition-smooth"
+                          onClick={() => setOpenEmployees(true)}
+                        >
+                          <item.icon className="h-5 w-5" />
+                          {!collapsed && <span>{item.title}</span>}
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleToggle();
+                          }}
+                          aria-label={
+                            openEmployees
+                              ? "Réduire la gestion des employés"
+                              : "Déployer la gestion des employés"
+                          }
+                          aria-expanded={openEmployees}
+                          className="p-2 transition-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary"
+                        >
+                          {openEmployees ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Sous-menu */}
+                      {!collapsed && openEmployees && (
+                        <div className="mt-1 ml-7 space-y-1">
+                          {item.children.map((child) => (
+                            <Link
+                              key={child.title}
+                              href={child.url}
+                              className={`block rounded-md px-3 py-1.5 text-sm transition-smooth ${
+                                isActive(child.url)
+                                  ? "bg-sidebar-primary/90 text-sidebar-primary-foreground font-medium"
+                                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <child.icon className="h-3.5 w-3.5" />
+                                <span>{child.title}</span>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                }
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild className="transition-smooth">
+                      <Link href={item.url} className={getNavClass(item.url)}>
+                        <item.icon className="h-5 w-5" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

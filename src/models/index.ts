@@ -5,3 +5,5 @@ export * from './task.model';
 export * from './affectation.model';
 export * from './employe.model';
 export * from './absence.model';
+export * from './brigade.model';
+export * from './equipe.model';

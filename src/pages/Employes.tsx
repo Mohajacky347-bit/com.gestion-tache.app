@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -10,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  Plus, 
+import {
+  Plus,
   Search,
   UserCheck,
   UserX,
@@ -22,7 +22,9 @@ import {
   Trash2,
   Send,
   Eye,
-  AlertTriangle
+  AlertTriangle,
+  Crown,
+  Shield
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -47,6 +49,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 interface Employee {
   id: string;
@@ -69,26 +72,55 @@ const disponibiliteLabels = {
 
 const disponibiliteVariants = {
   disponible: "completed",
-  affecte: "progress", 
+  affecte: "progress",
   absent: "paused"
 } as const;
 
 type AlertType = "success" | "error" | null;
 type DialogType = "add" | "edit" | "delete" | "details" | null;
 
+interface Brigade {
+  id_brigade: number;
+  nom_brigade: string;
+  lieu: string;
+}
+
+interface Equipe {
+  id_equipe: number;
+  nom_equipe: string;
+  specialite: string;
+  id_brigade: number;
+  brigade_nom?: string;
+  membres?: number;
+}
+
+type EmployeeType = "chef_brigade" | "chef_magasinier" | "employe" | "";
+
 export default function Employes() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [brigades, setBrigades] = useState<Brigade[]>([]);
+  const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [alert, setAlert] = useState<{ type: AlertType; message: string } | null>(null);
   const [dialog, setDialog] = useState<{ type: DialogType; employee?: Employee } | null>(null);
-  const [formData, setFormData] = useState<Partial<Employee>>({
+  const [employeeType, setEmployeeType] = useState<EmployeeType>("");
+  const [formData, setFormData] = useState<Partial<Employee> & {
+    isChefBrigade?: boolean;
+    id_brigade?: string;
+    isChefMagasinier?: boolean;
+    id_equipe?: string;
+  }>({
     nom: "",
     prenom: "",
     fonction: "",
     contact: "",
     specialite: "",
-    disponibilite: "disponible"
+    disponibilite: "disponible",
+    isChefBrigade: false,
+    id_brigade: undefined,
+    isChefMagasinier: false,
+    id_equipe: undefined
   });
 
   const filteredEmployees = employees.filter(emp =>
@@ -107,7 +139,31 @@ export default function Employes() {
 
   useEffect(() => {
     fetchData();
+    fetchBrigades();
+    fetchEquipes();
   }, []);
+
+  const fetchEquipes = async () => {
+    try {
+      const res = await fetch("/api/equipes", { cache: "no-store" });
+      if (!res.ok) throw new Error("Erreur lors du chargement des équipes");
+      const data: Equipe[] = await res.json();
+      setEquipes(data);
+    } catch (error) {
+      console.error('Error fetching equipes:', error);
+    }
+  };
+
+  const fetchBrigades = async () => {
+    try {
+      const res = await fetch("/api/brigades", { cache: "no-store" });
+      if (!res.ok) throw new Error("Erreur lors du chargement des brigades");
+      const data: Brigade[] = await res.json();
+      setBrigades(data);
+    } catch (error) {
+      console.error('Error fetching brigades:', error);
+    }
+  };
 
   useEffect(() => {
     if (alert) {
@@ -143,8 +199,13 @@ export default function Employes() {
         fonction: employee.fonction,
         contact: employee.contact,
         specialite: employee.specialite || "",
-        disponibilite: employee.disponibilite
+        disponibilite: employee.disponibilite,
+        isChefBrigade: false,
+        id_brigade: undefined,
+        isChefMagasinier: false,
+        id_equipe: undefined
       });
+      setEmployeeType("");
     } else if (type === "add") {
       setFormData({
         nom: "",
@@ -152,38 +213,134 @@ export default function Employes() {
         fonction: "",
         contact: "",
         specialite: "",
-        disponibilite: "disponible"
+        disponibilite: "disponible",
+        isChefBrigade: false,
+        id_brigade: undefined,
+        isChefMagasinier: false,
+        id_equipe: undefined
       });
+      setEmployeeType("");
     }
   };
 
   const closeDialog = () => {
     setDialog(null);
+    setEmployeeType("");
     setFormData({
       nom: "",
       prenom: "",
       fonction: "",
       contact: "",
       specialite: "",
-      disponibilite: "disponible"
+      disponibilite: "disponible",
+      isChefBrigade: false,
+      id_brigade: "",
+      isChefMagasinier: false,
+      id_equipe: ""
     });
   };
 
   const handleSubmit = async () => {
     try {
       if (dialog?.type === "add") {
+        // Valider les champs requis
+        if (!formData.prenom || !formData.prenom.trim()) {
+          showAlert("error", "Veuillez remplir le prénom");
+          return;
+        }
+        if (!formData.nom || !formData.nom.trim()) {
+          showAlert("error", "Veuillez remplir le nom");
+          return;
+        }
+        if (!formData.fonction || !formData.fonction.trim()) {
+          showAlert("error", "Veuillez remplir la fonction");
+          return;
+        }
+        if (!formData.contact || !formData.contact.trim()) {
+          showAlert("error", "Veuillez remplir le contact");
+          return;
+        }
+
+        // Valider selon le type d'employé
+        if (employeeType === "chef_brigade") {
+          if (!formData.id_brigade || formData.id_brigade === "" || formData.id_brigade === undefined) {
+            showAlert("error", "Veuillez sélectionner une brigade pour le chef de brigade");
+            return;
+          }
+        }
+        if (employeeType === "employe") {
+          if (!formData.id_equipe || formData.id_equipe === "" || formData.id_equipe === undefined) {
+            showAlert("error", "Veuillez sélectionner une équipe pour l'employé");
+            return;
+          }
+        }
+
+        const { isChefBrigade, id_brigade, isChefMagasinier, id_equipe, ...employeData } = formData;
+
+        // Préparer le payload selon le type d'employé
+        let payload: any = {
+          nom: employeData.nom?.trim(),
+          prenom: employeData.prenom?.trim(),
+          fonction: employeData.fonction?.trim(),
+          contact: employeData.contact?.trim(),
+          disponibilite: formData.disponibilite || "disponible",
+        };
+
+        // Gérer selon le type d'employé
+        if (employeeType === "chef_brigade") {
+          // Vérifier que id_brigade existe et n'est pas vide
+          if (!formData.id_brigade || formData.id_brigade === "" || formData.id_brigade === "0") {
+            console.error("Erreur: id_brigade invalide ou vide", formData.id_brigade);
+            showAlert("error", "Veuillez sélectionner une brigade valide pour le chef de brigade");
+            return;
+          }
+          const brigadeId = Number(formData.id_brigade);
+          if (isNaN(brigadeId) || brigadeId <= 0) {
+            console.error("Erreur: id_brigade invalide après conversion", formData.id_brigade, "->", brigadeId);
+            showAlert("error", "Veuillez sélectionner une brigade valide pour le chef de brigade");
+            return;
+          }
+          payload.isChefBrigade = true;
+          payload.id_brigade = brigadeId;
+          payload.specialite = undefined; // Pas de spécialité pour chef de brigade
+        } else if (employeeType === "chef_magasinier") {
+          payload.isChefMagasinier = true;
+          payload.specialite = "Chef magasinier";
+        } else if (employeeType === "employe") {
+          const equipeId = Number(formData.id_equipe);
+          if (isNaN(equipeId) || equipeId === 0) {
+            showAlert("error", "Veuillez sélectionner une équipe valide pour l'employé");
+            return;
+          }
+          payload.id_equipe = equipeId;
+          payload.specialite = employeData.specialite?.trim() || undefined;
+        }
+
+        console.log("Type d'employé:", employeeType);
+        console.log("formData.id_brigade:", formData.id_brigade);
+        console.log("Payload envoyé:", JSON.stringify(payload, null, 2));
+
         const response = await fetch("/api/employes", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
 
-        if (!response.ok) throw new Error("Erreur lors de l'ajout");
-        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erreur lors de l'ajout");
+        }
+
         await fetchData();
-        showAlert("success", "Employé ajouté avec succès");
+        let message = "Employé ajouté avec succès";
+        if (employeeType === "chef_brigade") {
+          message = "Chef de brigade ajouté avec succès";
+        } else if (employeeType === "chef_magasinier") {
+          message = "Chef magasinier ajouté avec succès";
+        }
+        showAlert("success", message);
 
       } else if (dialog?.type === "edit" && dialog.employee) {
         const response = await fetch(`/api/employes/${dialog.employee.id}`, {
@@ -195,7 +352,7 @@ export default function Employes() {
         });
 
         if (!response.ok) throw new Error("Erreur lors de la modification");
-        
+
         await fetchData();
         showAlert("success", "Employé modifié avec succès");
 
@@ -205,15 +362,26 @@ export default function Employes() {
         });
 
         if (!response.ok) throw new Error("Erreur lors de la suppression");
-        
+
         await fetchData();
         showAlert("success", "Employé supprimé avec succès");
       }
-      
+
       closeDialog();
-    } catch (error) {
-      showAlert("error", "Erreur lors de l'opération");
+    } catch (error: any) {
+      console.error('Error in handleSubmit:', error);
+      showAlert("error", error.message || "Erreur lors de l'opération");
     }
+  };
+
+  const handleNextStep = () => {
+    // Valider les champs de base
+    if (!formData.prenom?.trim() || !formData.nom?.trim() ||
+      !formData.fonction?.trim() || !formData.contact?.trim()) {
+      showAlert("error", "Veuillez remplir tous les champs obligatoires");
+      return;
+    }
+    setEmployeeType("employe"); // Ou laissez vide pour que l'utilisateur choisisse
   };
 
   const transferEmployee = (employee: Employee) => {
@@ -225,14 +393,12 @@ export default function Employes() {
     <div className="space-y-6 animate-fade-in">
       {/* Alerte */}
       {alert && (
-        <Alert className={`fixed top-4 right-4 z-50 w-96 shadow-lg border-l-4 ${
-          alert.type === "success" 
-            ? "border-green-500 bg-green-50" 
+        <Alert className={`fixed top-4 right-4 z-50 w-96 shadow-lg border-l-4 ${alert.type === "success"
+            ? "border-green-500 bg-green-50"
             : "border-red-500 bg-red-50"
-        }`}>
-          <AlertDescription className={`font-medium ${
-            alert.type === "success" ? "text-green-800" : "text-red-800"
           }`}>
+          <AlertDescription className={`font-medium ${alert.type === "success" ? "text-green-800" : "text-red-800"
+            }`}>
             {alert.message}
           </AlertDescription>
         </Alert>
@@ -248,7 +414,7 @@ export default function Employes() {
             Gérez les employés du service infrastructure
           </p>
         </div>
-        <Button 
+        <Button
           className="shadow-soft bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           onClick={() => openDialog("add")}
         >
@@ -398,32 +564,32 @@ export default function Employes() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={() => openDialog("details", employee)}
                             title="Voir détails"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={() => openDialog("edit", employee)}
                             title="Modifier"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={() => transferEmployee(employee)}
                             title="Transférer à une autre tâche"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => openDialog("delete", employee)}
@@ -443,105 +609,425 @@ export default function Employes() {
       </Card>
 
       {/* Dialog d'ajout/modification */}
+      {/* Dialog d'ajout/modification */}
       <Dialog open={dialog?.type === "add" || dialog?.type === "edit"} onOpenChange={closeDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               {dialog?.type === "add" ? "Ajouter un employé" : "Modifier l'employé"}
             </DialogTitle>
             <DialogDescription>
-              {dialog?.type === "add" 
-                ? "Remplissez les informations du nouvel employé." 
+              {dialog?.type === "add"
+                ? `Étape ${employeeType === "" ? 1 : 2} sur 2 - ${employeeType === "" ? "Informations de base" : "Configuration"}`
                 : "Modifiez les informations de l'employé."
               }
             </DialogDescription>
           </DialogHeader>
+
+          {/* Indicateur d'étape - seulement en mode ajout */}
+          {dialog?.type === "add" && (
+            <div className="flex space-x-1 rounded-lg bg-muted p-1 mb-4">
+              <div className={`flex-1 text-center py-1 rounded text-sm font-medium ${employeeType === ""
+                  ? "bg-white text-foreground shadow-sm"
+                  : "text-muted-foreground"
+                }`}>
+                Étape 1: Informations
+              </div>
+              <div className={`flex-1 text-center py-1 rounded text-sm font-medium ${employeeType !== ""
+                  ? "bg-white text-foreground shadow-sm"
+                  : "text-muted-foreground"
+                }`}>
+                Étape 2: Configuration
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="prenom">Prénom</Label>
-                <Input
-                  id="prenom"
-                  value={formData.prenom}
-                  onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                  placeholder="Jean"
-                  required
-                />
+            {/* ÉTAPE 1 : Informations de base (seulement visible à l'étape 1) */}
+            {dialog?.type === "add" && employeeType === "" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="prenom">Prénom *</Label>
+                    <Input
+                      id="prenom"
+                      value={formData.prenom}
+                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                      placeholder="Jean"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="nom">Nom *</Label>
+                    <Input
+                      id="nom"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                      placeholder="Dupont"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="fonction">Fonction *</Label>
+                  <Input
+                    id="fonction"
+                    value={formData.fonction}
+                    onChange={(e) => setFormData({ ...formData, fonction: e.target.value })}
+                    placeholder="Technicien voies"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="contact">Contact *</Label>
+                  <Input
+                    id="contact"
+                    value={formData.contact}
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                    placeholder="034 12 345 67"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="disponibilite">Disponibilité</Label>
+                  <Select
+                    value={formData.disponibilite}
+                    onValueChange={(value: "disponible" | "affecte" | "absent") =>
+                      setFormData({ ...formData, disponibilite: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="disponible">Disponible</SelectItem>
+                      <SelectItem value="affecte">Affecté</SelectItem>
+                      <SelectItem value="absent">Absent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="nom">Nom</Label>
-                <Input
-                  id="nom"
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  placeholder="Dupont"
-                  required
-                />
+            )}
+
+            {/* ÉTAPE 2 : Type d'employé et configuration - seulement en mode ajout */}
+            {dialog?.type === "add" && employeeType !== "" && (
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="employeeType" className="flex items-center gap-2 text-lg font-semibold">
+                    <Users className="h-5 w-5" />
+                    Type d'employé *
+                  </Label>
+                  <Select
+                    value={employeeType}
+                    onValueChange={(value: EmployeeType) => {
+                      setEmployeeType(value);
+                      // Réinitialiser les champs selon le type
+                      setFormData({
+                        ...formData,
+                        isChefBrigade: value === "chef_brigade",
+                        id_brigade: undefined,
+                        isChefMagasinier: value === "chef_magasinier",
+                        id_equipe: undefined,
+                        specialite: value === "chef_magasinier" ? "" : formData.specialite
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner le type d'employé" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="chef_brigade">
+                        <div className="flex items-center gap-2">
+                          <Crown className="h-4 w-4 text-yellow-600" />
+                          Chef de brigade
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="chef_magasinier">Chef magasinier</SelectItem>
+                      <SelectItem value="employe">Employé</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Configuration spécifique selon le type */}
+
+                {/* Chef de brigade : Sélection de brigade */}
+                {employeeType === "chef_brigade" && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="id_brigade" className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Brigade à diriger *
+                    </Label>
+                    <Select
+                      value={formData.id_brigade || ""}
+                      onValueChange={(value) => {
+                        if (value && value !== "" && value !== "0") {
+                          setFormData({ ...formData, id_brigade: value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une brigade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {brigades.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Aucune brigade disponible
+                          </div>
+                        ) : (
+                          brigades
+                            .filter(brigade => brigade.id_brigade && brigade.id_brigade > 0)
+                            .map((brigade) => (
+                              <SelectItem key={brigade.id_brigade} value={String(brigade.id_brigade)}>
+                                {brigade.nom_brigade} - {brigade.lieu}
+                              </SelectItem>
+                            ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Employé simple : Sélection en 2 étapes */}
+                {employeeType === "employe" && (
+                  <div className="space-y-4">
+                    {/* Brigade et Équipe côte à côte */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Brigade */}
+                      <div className="grid gap-2">
+                        <Label htmlFor="id_brigade_employe" className="flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          Brigade *
+                          {formData.id_brigade && (
+                            <Badge variant="outline" className="text-xs">
+                              {
+                                equipes.filter(e => e.id_brigade === Number(formData.id_brigade)).length
+                              } équipe(s)
+                            </Badge>
+                          )}
+                        </Label>
+                        <Select
+                          value={formData.id_brigade || ""}
+                          onValueChange={(value) => {
+                            if (value && value !== "" && value !== "0") {
+                              setFormData({
+                                ...formData,
+                                id_brigade: value,
+                                id_equipe: undefined
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choisir une brigade" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {brigades.length === 0 ? (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                Aucune brigade disponible
+                              </div>
+                            ) : (
+                              brigades
+                                .filter(brigade => brigade.id_brigade && brigade.id_brigade > 0)
+                                .map((brigade) => (
+                                  <SelectItem key={brigade.id_brigade} value={String(brigade.id_brigade)}>
+                                    {brigade.nom_brigade} - {brigade.lieu}
+                                  </SelectItem>
+                                ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Équipe */}
+                      <div className="grid gap-2">
+                        <Label htmlFor="id_equipe" className="flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Équipe *
+                        </Label>
+                        <Select
+                          value={formData.id_equipe || ""}
+                          onValueChange={(value) => setFormData({ ...formData, id_equipe: value })}
+                          disabled={!formData.id_brigade}
+                        >
+                          <SelectTrigger className={
+                            !formData.id_brigade ? "bg-muted text-muted-foreground" : ""
+                          }>
+                            <SelectValue
+                              placeholder={
+                                formData.id_brigade
+                                  ? "Choisir une équipe"
+                                  : "Sélectionnez d'abord une brigade"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {!formData.id_brigade ? (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                Veuillez d'abord sélectionner une brigade
+                              </div>
+                            ) : (
+                              (() => {
+                                const equipesDeLaBrigade = equipes.filter(
+                                  equipe => equipe.id_brigade === Number(formData.id_brigade)
+                                );
+
+                                if (equipesDeLaBrigade.length === 0) {
+                                  return (
+                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                      Aucune équipe dans cette brigade
+                                    </div>
+                                  );
+                                }
+
+                                return equipesDeLaBrigade.map((equipe) => (
+                                  <SelectItem key={equipe.id_equipe} value={String(equipe.id_equipe)}>
+                                    {equipe.nom_equipe} - {equipe.specialite}
+                                  </SelectItem>
+                                ));
+                              })()
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Spécialité */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="specialite">Spécialité</Label>
+                      <Textarea
+                        id="specialite"
+                        value={formData.specialite}
+                        onChange={(e) => setFormData({ ...formData, specialite: e.target.value })}
+                        placeholder="Ex: Maçon, Électricien, etc."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Chef magasinier : Pas de configuration supplémentaire */}
+                {employeeType === "chef_magasinier" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <Shield className="h-4 w-4" />
+                      <span className="font-medium">Configuration automatique</span>
+                    </div>
+                    <p className="text-sm text-blue-600 mt-1">
+                      Le chef magasinier sera automatiquement configuré avec les droits de gestion du matériel.
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="fonction">Fonction</Label>
-              <Input
-                id="fonction"
-                value={formData.fonction}
-                onChange={(e) => setFormData({ ...formData, fonction: e.target.value })}
-                placeholder="Technicien voies"
-                required
-              />
-            </div>
+            )}
 
-            <div className="grid gap-2">
-              <Label htmlFor="contact">Contact</Label>
-              <Input
-                id="contact"
-                value={formData.contact}
-                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                placeholder="034 12 345 67"
-                required
-              />
-            </div>
+            {/* Mode édition : afficher tout */}
+            {dialog?.type === "edit" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="prenom">Prénom *</Label>
+                    <Input
+                      id="prenom"
+                      value={formData.prenom}
+                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                      placeholder="Jean"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="nom">Nom *</Label>
+                    <Input
+                      id="nom"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                      placeholder="Dupont"
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="specialite">Spécialité</Label>
-              <Textarea
-                id="specialite"
-                value={formData.specialite}
-                onChange={(e) => setFormData({ ...formData, specialite: e.target.value })}
-                placeholder="Soudure, Réparation voies"
-                rows={2}
-              />
-            </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fonction">Fonction *</Label>
+                  <Input
+                    id="fonction"
+                    value={formData.fonction}
+                    onChange={(e) => setFormData({ ...formData, fonction: e.target.value })}
+                    placeholder="Technicien voies"
+                    required
+                  />
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="disponibilite">Disponibilité</Label>
-              <Select 
-                value={formData.disponibilite} 
-                onValueChange={(value: "disponible" | "affecte" | "absent") => 
-                  setFormData({ ...formData, disponibilite: value })
+                <div className="grid gap-2">
+                  <Label htmlFor="contact">Contact *</Label>
+                  <Input
+                    id="contact"
+                    value={formData.contact}
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                    placeholder="034 12 345 67"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="disponibilite">Disponibilité</Label>
+                  <Select
+                    value={formData.disponibilite}
+                    onValueChange={(value: "disponible" | "affecte" | "absent") =>
+                      setFormData({ ...formData, disponibilite: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="disponible">Disponible</SelectItem>
+                      <SelectItem value="affecte">Affecté</SelectItem>
+                      <SelectItem value="absent">Absent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex justify-between items-center">
+            {/* Bouton retour pour l'étape 2 */}
+            {dialog?.type === "add" && employeeType !== "" && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEmployeeType("")}
+              >
+                ← Retour à l'étape 1
+              </Button>
+            )}
+
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={closeDialog}>
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                onClick={employeeType === "" ? handleNextStep : handleSubmit}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                disabled={
+                  dialog?.type === "edit" && (
+                    !formData.prenom?.trim() ||
+                    !formData.nom?.trim() ||
+                    !formData.fonction?.trim() ||
+                    !formData.contact?.trim()
+                  )
                 }
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disponible">Disponible</SelectItem>
-                  <SelectItem value="affecte">Affecté</SelectItem>
-                  <SelectItem value="absent">Absent</SelectItem>
-                </SelectContent>
-              </Select>
+                {dialog?.type === "add"
+                  ? (employeeType === "" ? "Suivant →" : "Ajouter")
+                  : "Modifier"
+                }
+              </Button>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              Annuler
-            </Button>
-            <Button 
-              onClick={handleSubmit}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              {dialog?.type === "add" ? "Ajouter" : "Modifier"}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -586,10 +1072,12 @@ export default function Employes() {
                 <Label className="text-sm text-muted-foreground">Contact</Label>
                 <p className="font-medium">{dialog.employee.contact}</p>
               </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Spécialité</Label>
-                <p className="font-medium">{dialog.employee.specialite || "Non spécifiée"}</p>
-              </div>
+              {dialog.employee.specialite && (
+                <div>
+                  <Label className="text-sm text-muted-foreground">Spécialité</Label>
+                  <p className="font-medium">{dialog.employee.specialite}</p>
+                </div>
+              )}
               {dialog.employee.tacheActuelle && (
                 <div>
                   <Label className="text-sm text-muted-foreground">Tâche actuelle</Label>
@@ -616,32 +1104,32 @@ export default function Employes() {
           <AlertDialogHeader>
             <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
-  <div>
-    Vous êtes sur le point de supprimer{" "}
-    <span className="font-semibold text-foreground">
-      {dialog?.employee?.prenom} {dialog?.employee?.nom}
-    </span>.
-  </div>
-  
-  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-    <div className="flex items-start gap-2">
-      <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-      <div className="text-sm text-destructive">
-        <span className="font-semibold">Suppression en cascade :</span> 
-        {" "}Toutes les données associées (absences, affectations) seront également supprimées.
-      </div>
-    </div>
-  </div>
+              <div>
+                Vous êtes sur le point de supprimer{" "}
+                <span className="font-semibold text-foreground">
+                  {dialog?.employee?.prenom} {dialog?.employee?.nom}
+                </span>.
+              </div>
 
-  <div className="text-sm text-muted-foreground">
-    Cette action est irréversible. Confirmez-vous la suppression ?
-  </div>
-</AlertDialogDescription>
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-destructive">
+                    <span className="font-semibold">Suppression en cascade :</span>
+                    {" "}Toutes les données associées (absences, affectations) seront également supprimées.
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                Cette action est irréversible. Confirmez-vous la suppression ?
+              </div>
+            </AlertDialogDescription>
 
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleSubmit}
               className="bg-red-600 hover:bg-red-700"
             >

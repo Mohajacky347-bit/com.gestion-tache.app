@@ -18,32 +18,53 @@ export const employeModel = {
     try {
       const [rows] = await dbPool.query(
         `SELECT 
-          id, 
-          nom, 
-          prenom, 
-          fonction,
-          contact,
-          specialite,
-          disponibilite,
-          tache_actuelle as tacheActuelle,
-          date_absence as dateAbsence,
-          type_absence as typeAbsence
-         FROM employe 
-         ORDER BY nom, prenom ASC`
+          e.id, 
+          e.nom, 
+          e.prenom, 
+          e.fonction,
+          e.contact,
+          e.specialite,
+          e.disponibilite,
+          e.tache_actuelle as tacheActuelle,
+          e.date_absence as dateAbsence,
+          e.type_absence as typeAbsence,
+          CASE 
+            WHEN cb.id_employe IS NOT NULL THEN 'Chef de brigade'
+            WHEN e.specialite = 'Chef magasinier' OR e.specialite LIKE '%Chef magasinier%' OR e.specialite LIKE '%chef magasinier%' THEN 'Chef magasinier'
+            ELSE NULL
+          END as role
+         FROM employe e
+         LEFT JOIN chefbrigade cb ON cb.id_employe = e.id
+         ORDER BY e.nom, e.prenom ASC`
       );
       
-      const employes = (rows as any[]).map(row => ({
-        id: String(row.id),
-        nom: String(row.nom),
-        prenom: String(row.prenom),
-        fonction: String(row.fonction),
-        contact: String(row.contact),
-        specialite: row.specialite ? String(row.specialite) : undefined,
-        disponibilite: row.disponibilite as "disponible" | "affecte" | "absent",
-        tacheActuelle: row.tacheActuelle ? String(row.tacheActuelle) : undefined,
-        dateAbsence: row.dateAbsence ? new Date(row.dateAbsence).toISOString().split('T')[0] : undefined,
-        typeAbsence: row.typeAbsence as "conge" | "maladie" | undefined
-      }));
+      const employes = (rows as any[]).map(row => {
+        // Si l'employé a un rôle (Chef de brigade ou Chef magasinier), utiliser le rôle comme fonction
+        // Sinon, utiliser la fonction normale
+        const fonction = row.role ? String(row.role) : String(row.fonction);
+        
+        // Pour la spécialité :
+        // - Si Chef de brigade : pas de spécialité (undefined)
+        // - Si Chef magasinier : pas de spécialité (undefined)
+        // - Sinon : utiliser la spécialité de l'employé
+        let specialite: string | undefined = undefined;
+        if (!row.role) {
+          specialite = row.specialite ? String(row.specialite) : undefined;
+        }
+        
+        return {
+          id: String(row.id),
+          nom: String(row.nom),
+          prenom: String(row.prenom),
+          fonction: fonction,
+          contact: String(row.contact),
+          specialite: specialite,
+          disponibilite: row.disponibilite as "disponible" | "affecte" | "absent",
+          tacheActuelle: row.tacheActuelle ? String(row.tacheActuelle) : undefined,
+          dateAbsence: row.dateAbsence ? new Date(row.dateAbsence).toISOString().split('T')[0] : undefined,
+          typeAbsence: row.typeAbsence as "conge" | "maladie" | undefined
+        };
+      });
       
       return employes;
     } catch (error) {

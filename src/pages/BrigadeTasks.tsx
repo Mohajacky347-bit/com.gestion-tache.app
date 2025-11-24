@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,121 +19,194 @@ import {
   Wrench,
   Calendar,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  Loader2,
+  Package,
+  Plus
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface BrigadeTask {
   id: string;
   title: string;
-  description: string;
-  status: "en_attente" | "en_cours" | "terminee";
-  priority: "haute" | "moyenne" | "basse";
+  employes: string[];
+  materiels: { nom: string; quantite: number }[];
   dateDebut: string;
   dateFin: string;
-  lieu: string;
-  materiels: string[];
-  responsable: string;
-  notes?: string;
+  dateFinReel?: string;
+  status: "pending" | "paused" | "progress" | "completed";
+  phases: Array<{
+    id?: string;
+    nom: string;
+    description: string;
+    dureePrevue: number;
+    dateDebut: string;
+    dateFin: string;
+    statut: "En attente" | "En cours" | "Terminé";
+  }>;
 }
 
-// Données de démonstration
-const brigadeTasks: BrigadeTask[] = [
-  {
-    id: "T001",
-    title: "Maintenance route principale",
-    description: "Réparation des nids-de-poule sur la route nationale RN1",
-    status: "en_cours",
-    priority: "haute",
-    dateDebut: "2024-01-15",
-    dateFin: "2024-01-20",
-    lieu: "Route Nationale 1, Km 15-20",
-    materiels: ["Pelle mécanique", "Béton", "Compacteur", "Camion"],
-    responsable: "Chef de Brigade",
-    notes: "Attention aux conditions météo"
-  },
-  {
-    id: "T002", 
-    title: "Nettoyage caniveaux secteur A",
-    description: "Nettoyage et débouchage des caniveaux du secteur A",
-    status: "en_attente",
-    priority: "moyenne",
-    dateDebut: "2024-01-18",
-    dateFin: "2024-01-22",
-    lieu: "Secteur A - Centre ville",
-    materiels: ["Camion de nettoyage", "Débouchage haute pression", "Gants"],
-    responsable: "Chef de Brigade"
-  },
-  {
-    id: "T003",
-    title: "Installation éclairage public",
-    description: "Remplacement des lampadaires défaillants",
-    status: "terminee",
-    priority: "basse",
-    dateDebut: "2024-01-10",
-    dateFin: "2024-01-12",
-    lieu: "Avenue de la République",
-    materiels: ["Échafaudage", "Lampadaires", "Outils électriques"],
-    responsable: "Chef de Brigade"
-  },
-  {
-    id: "T004",
-    title: "Réparation pont piétonnier",
-    description: "Renforcement de la structure du pont piétonnier",
-    status: "en_attente",
-    priority: "haute",
-    dateDebut: "2024-01-25",
-    dateFin: "2024-01-30",
-    lieu: "Pont piétonnier - Parc municipal",
-    materiels: ["Béton armé", "Échafaudage", "Outils de construction"],
-    responsable: "Chef de Brigade"
-  }
-];
-
 const statusLabels = {
-  en_attente: "En attente",
-  en_cours: "En cours", 
-  terminee: "Terminée"
+  pending: "En attente",
+  progress: "En cours", 
+  completed: "Terminée",
+  paused: "En pause"
 };
 
 const statusVariants = {
-  en_attente: "pending",
-  en_cours: "progress",
-  terminee: "completed"
+  pending: "pending",
+  progress: "progress",
+  completed: "completed",
+  paused: "outline"
 } as const;
 
-const priorityLabels = {
-  haute: "Haute",
-  moyenne: "Moyenne",
-  basse: "Basse"
+const mapStatusToFilter = (status: BrigadeTask["status"]): string => {
+  switch (status) {
+    case "pending": return "en_attente";
+    case "progress": return "en_cours";
+    case "completed": return "terminee";
+    case "paused": return "en_attente";
+    default: return "en_attente";
+  }
 };
-
-const priorityVariants = {
-  haute: "destructive",
-  moyenne: "secondary", 
-  basse: "outline"
-} as const;
 
 export default function BrigadeTasks() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [tasks, setTasks] = useState<BrigadeTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<BrigadeTask | null>(null);
+  const [requestedMaterials, setRequestedMaterials] = useState<Array<{ nom: string; quantite: number }>>([]);
+  const [availableMaterials, setAvailableMaterials] = useState<Array<{ id: string; nom: string; quantite: number }>>([]);
+  const { toast } = useToast();
 
-  const filteredTasks = brigadeTasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.lieu.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-    
+  useEffect(() => {
+    fetchTasks();
+    fetchAvailableMaterials();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch("/api/taches");
+      if (!response.ok) throw new Error("Erreur lors de la récupération des tâches");
+      const data = await response.json();
+      setTasks(data);
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les tâches",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchAvailableMaterials = async () => {
+    try {
+      const response = await fetch("/api/materiels");
+      if (!response.ok) throw new Error("Erreur lors de la récupération des matériels");
+      const data = await response.json();
+      setAvailableMaterials(data.map((m: any) => ({ id: m.id, nom: m.nom, quantite: m.quantite })));
+    } catch (error) {
+      console.error("Erreur:", error);
+    }
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const taskStatusFilter = mapStatusToFilter(task.status);
+    const matchesStatus = statusFilter === "all" || taskStatusFilter === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
-    total: brigadeTasks.length,
-    enAttente: brigadeTasks.filter(t => t.status === "en_attente").length,
-    enCours: brigadeTasks.filter(t => t.status === "en_cours").length,
-    terminees: brigadeTasks.filter(t => t.status === "terminee").length
+    total: tasks.length,
+    enAttente: tasks.filter(t => t.status === "pending").length,
+    enCours: tasks.filter(t => t.status === "progress").length,
+    terminees: tasks.filter(t => t.status === "completed").length
+  };
+
+  const handleRequestMaterials = (task: BrigadeTask) => {
+    setSelectedTask(task);
+    setRequestedMaterials([]);
+    setIsRequestDialogOpen(true);
+  };
+
+  const addMaterialRequest = () => {
+    setRequestedMaterials([...requestedMaterials, { nom: "", quantite: 1 }]);
+  };
+
+  const updateMaterialRequest = (index: number, field: "nom" | "quantite", value: string | number) => {
+    const updated = [...requestedMaterials];
+    updated[index] = { ...updated[index], [field]: value };
+    setRequestedMaterials(updated);
+  };
+
+  const removeMaterialRequest = (index: number) => {
+    setRequestedMaterials(requestedMaterials.filter((_, i) => i !== index));
+  };
+
+  const submitMaterialRequest = async () => {
+    if (!selectedTask || requestedMaterials.length === 0) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner au moins un matériel",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/materiels/demandes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idTache: selectedTask.id,
+          materiels: requestedMaterials,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Erreur lors de la demande");
+
+      toast({
+        title: "Succès",
+        description: "Demande de matériel envoyée au chef de section",
+      });
+
+      setIsRequestDialogOpen(false);
+      setRequestedMaterials([]);
+      setSelectedTask(null);
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'envoyer la demande de matériel",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -228,96 +301,164 @@ export default function BrigadeTasks() {
           <CardTitle>Tâches ({filteredTasks.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>ID</TableHead>
-                  <TableHead>Titre</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Priorité</TableHead>
-                  <TableHead>Dates</TableHead>
-                  <TableHead>Lieu</TableHead>
-                  <TableHead>Matériels</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTasks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
-                      Aucune tâche trouvée
-                    </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>ID</TableHead>
+                    <TableHead>Titre</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Matériels</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : filteredTasks.map((task) => (
-                  <TableRow key={task.id} className="hover:bg-muted/30 transition-smooth">
-                    <TableCell className="font-medium">{task.id}</TableCell>
-                    <TableCell>
-                      <div className="font-medium text-foreground">{task.title}</div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {task.description}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariants[task.status]}>
-                        {statusLabels[task.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={priorityVariants[task.priority]}>
-                        {priorityLabels[task.priority]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(task.dateDebut).toLocaleDateString()}
+                </TableHeader>
+                <TableBody>
+                  {filteredTasks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        Aucune tâche trouvée
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTasks.map((task) => (
+                    <TableRow key={task.id} className="hover:bg-muted/30 transition-smooth">
+                      <TableCell className="font-medium">{task.id}</TableCell>
+                      <TableCell>
+                        <div className="font-medium text-foreground">{task.title}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariants[task.status]}>
+                          {statusLabels[task.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(task.dateDebut).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            au {new Date(task.dateFin).toLocaleDateString()}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          au {new Date(task.dateFin).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">{task.materiels.length} matériel(s)</span>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {task.materiels.slice(0, 2).map(m => m.nom).join(", ")}
+                            {task.materiels.length > 2 && "..."}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
-                        {task.lieu}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">{task.materiels.length} matériel(s)</span>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {task.materiels.slice(0, 2).join(", ")}
-                          {task.materiels.length > 2 && "..."}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/brigade/taches/${task.id}`}>
-                            Détails
-                          </Link>
-                        </Button>
-                        {task.status === "en_cours" && (
-                          <Button variant="default" size="sm" asChild>
-                            <Link href="/brigade/rapports">
-                              <FileText className="h-4 w-4 mr-1" />
-                              Rapport
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/brigade/taches/${task.id}`}>
+                              Détails
                             </Link>
                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                          {task.status === "progress" && (
+                            <>
+                              <Button 
+                                variant="secondary" 
+                                size="sm"
+                                onClick={() => handleRequestMaterials(task)}
+                              >
+                                <Package className="h-4 w-4 mr-1" />
+                                Demander matériel
+                              </Button>
+                              <Button variant="default" size="sm" asChild>
+                                <Link href="/brigade/rapports">
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Rapport
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Material Request Dialog */}
+      <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Demander des matériels</DialogTitle>
+            <DialogDescription>
+              Demandez des matériels supplémentaires pour la tâche {selectedTask?.id}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {requestedMaterials.map((material, index) => (
+              <div key={index} className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label>Matériel</Label>
+                  <Select
+                    value={material.nom}
+                    onValueChange={(value) => updateMaterialRequest(index, "nom", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un matériel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableMaterials.map((m) => (
+                        <SelectItem key={m.id} value={m.nom}>
+                          {m.nom} (Disponible: {m.quantite})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-32">
+                  <Label>Quantité</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={material.quantite}
+                    onChange={(e) => updateMaterialRequest(index, "quantite", parseInt(e.target.value) || 1)}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeMaterialRequest(index)}
+                >
+                  ×
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              onClick={addMaterialRequest}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un matériel
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRequestDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={submitMaterialRequest}>
+              Envoyer la demande
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

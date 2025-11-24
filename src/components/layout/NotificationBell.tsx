@@ -54,10 +54,12 @@ export function NotificationBell({ role }: NotificationBellProps) {
     const filter = typeof payload?.filter === "string" ? payload.filter : null;
     const rapportId = typeof payload?.rapportId === "string" ? payload.rapportId : null;
     const taskId = typeof payload?.taskId === "string" ? payload.taskId : null;
+    const demandeId = typeof payload?.demandeId === "string" ? payload.demandeId : null;
 
     if (filter) params.set("filtre", filter);
     if (rapportId) params.set("rapportId", rapportId);
     if (taskId) params.set("taskId", taskId);
+    if (demandeId) params.set("demandeId", demandeId);
 
     const queryString = params.toString();
     return queryString ? `${path}?${queryString}` : path;
@@ -68,12 +70,33 @@ export function NotificationBell({ role }: NotificationBellProps) {
       await markAsRead(notif.id);
 
       const redirectTo = typeof notif.payload?.redirectTo === "string" ? notif.payload.redirectTo : null;
-      if (redirectTo) {
+      
+      // Si pas de redirectTo explicite, déterminer la redirection selon le type de notification
+      if (!redirectTo) {
+        const taskId = typeof notif.payload?.taskId === "string" ? notif.payload.taskId : null;
+        const rapportId = typeof notif.payload?.rapportId === "string" ? notif.payload.rapportId : null;
+        const demandeId = typeof notif.payload?.demandeId === "string" ? notif.payload.demandeId : null;
+
+        if (taskId && role === "chef_brigade") {
+          router.push(`/brigade/taches?taskId=${taskId}`);
+          return;
+        }
+        
+        if (rapportId && role === "chef_section") {
+          router.push(`/rapports?rapportId=${rapportId}`);
+          return;
+        }
+
+        if (demandeId && role === "chef_section") {
+          router.push(`/materiels?demandeId=${demandeId}`);
+          return;
+        }
+      } else {
         const target = buildRedirectUrl(redirectTo, notif.payload ?? undefined);
         router.push(target);
       }
     },
-    [markAsRead, router]
+    [markAsRead, router, role]
   );
 
   return (
