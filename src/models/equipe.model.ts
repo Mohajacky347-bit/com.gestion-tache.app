@@ -9,6 +9,18 @@ export interface EquipeEntity {
   membres?: number;
 }
 
+export interface EquipeMember {
+  id: string;
+  nom: string;
+  prenom: string;
+  fonction: string;
+  role?: string | null;
+}
+
+export interface EquipeWithMembers extends EquipeEntity {
+  members: EquipeMember[];
+}
+
 export const equipeModel = {
   async findAll(): Promise<EquipeEntity[]> {
     try {
@@ -113,6 +125,63 @@ export const equipeModel = {
       console.error('Error fetching equipes by brigade:', error);
       throw error;
     }
+  },
+
+  async findWithMembersByBrigade(id_brigade: number): Promise<EquipeWithMembers[]> {
+    const [rows] = await dbPool.query(
+      `SELECT 
+        e.id_equipe,
+        e.nom_equipe,
+        e.specialite,
+        e.id_brigade,
+        b.nom_brigade as brigade_nom,
+        emp.id as membre_id,
+        emp.nom as membre_nom,
+        emp.prenom as membre_prenom,
+        emp.fonction as membre_fonction,
+        ee.role as membre_role
+      FROM equipe e
+      LEFT JOIN brigade b ON b.id_brigade = e.id_brigade
+      LEFT JOIN employe_equipe ee ON ee.id_equipe = e.id_equipe
+      LEFT JOIN employe emp ON emp.id = ee.id_employe
+      WHERE e.id_brigade = ?
+      ORDER BY e.nom_equipe ASC, emp.nom ASC`,
+      [id_brigade]
+    );
+
+    const map = new Map<number, EquipeWithMembers>();
+
+    (rows as any[]).forEach(row => {
+      if (!map.has(row.id_equipe)) {
+        map.set(row.id_equipe, {
+          id_equipe: Number(row.id_equipe),
+          nom_equipe: String(row.nom_equipe),
+          specialite: String(row.specialite),
+          id_brigade: Number(row.id_brigade),
+          brigade_nom: row.brigade_nom ? String(row.brigade_nom) : undefined,
+          membres: 0,
+          members: [],
+        });
+      }
+
+      const equipe = map.get(row.id_equipe)!;
+
+      if (row.membre_id) {
+        equipe.members.push({
+          id: String(row.membre_id),
+          nom: String(row.membre_nom),
+          prenom: String(row.membre_prenom),
+          fonction: String(row.membre_fonction),
+          role: row.membre_role ? String(row.membre_role) : null,
+        });
+        equipe.membres = (equipe.membres ?? 0) + 1;
+      }
+    });
+
+    return Array.from(map.values()).map(equipe => ({
+      ...equipe,
+      members: equipe.members,
+    }));
   },
 
   async create(equipe: Omit<EquipeEntity, 'id_equipe' | 'brigade_nom' | 'membres'>): Promise<EquipeEntity> {

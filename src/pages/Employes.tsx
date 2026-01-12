@@ -1,21 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Plus,
   Search,
-  UserCheck,
-  UserX,
-  Users,
   Edit,
   Phone,
   Star,
@@ -24,7 +13,10 @@ import {
   Eye,
   AlertTriangle,
   Crown,
-  Shield
+  Shield,
+  Users,
+  Briefcase,
+  MapPin
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -49,7 +41,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 
 interface Employee {
   id: string;
@@ -130,13 +121,6 @@ export default function Employes() {
     (emp.specialite && emp.specialite.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const stats = {
-    total: employees.length,
-    disponible: employees.filter(e => e.disponibilite === "disponible").length,
-    affecte: employees.filter(e => e.disponibilite === "affecte").length,
-    absent: employees.filter(e => e.disponibilite === "absent").length
-  };
-
   useEffect(() => {
     fetchData();
     fetchBrigades();
@@ -145,7 +129,7 @@ export default function Employes() {
 
   const fetchEquipes = async () => {
     try {
-      const res = await fetch("/api/equipes", { cache: "no-store" });
+      const res = await fetch("/api/equipes");
       if (!res.ok) throw new Error("Erreur lors du chargement des équipes");
       const data: Equipe[] = await res.json();
       setEquipes(data);
@@ -156,7 +140,7 @@ export default function Employes() {
 
   const fetchBrigades = async () => {
     try {
-      const res = await fetch("/api/brigades", { cache: "no-store" });
+      const res = await fetch("/api/brigades");
       if (!res.ok) throw new Error("Erreur lors du chargement des brigades");
       const data: Brigade[] = await res.json();
       setBrigades(data);
@@ -175,7 +159,7 @@ export default function Employes() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/employes", { cache: "no-store" });
+      const res = await fetch("/api/employes");
       if (!res.ok) throw new Error("Erreur lors du chargement des employés");
       const data: Employee[] = await res.json();
       setEmployees(data);
@@ -243,7 +227,6 @@ export default function Employes() {
   const handleSubmit = async () => {
     try {
       if (dialog?.type === "add") {
-        // Valider les champs requis
         if (!formData.prenom || !formData.prenom.trim()) {
           showAlert("error", "Veuillez remplir le prénom");
           return;
@@ -261,7 +244,6 @@ export default function Employes() {
           return;
         }
 
-        // Valider selon le type d'employé
         if (employeeType === "chef_brigade") {
           if (!formData.id_brigade || formData.id_brigade === "" || formData.id_brigade === undefined) {
             showAlert("error", "Veuillez sélectionner une brigade pour le chef de brigade");
@@ -277,7 +259,6 @@ export default function Employes() {
 
         const { isChefBrigade, id_brigade, isChefMagasinier, id_equipe, ...employeData } = formData;
 
-        // Préparer le payload selon le type d'employé
         let payload: any = {
           nom: employeData.nom?.trim(),
           prenom: employeData.prenom?.trim(),
@@ -286,23 +267,19 @@ export default function Employes() {
           disponibilite: formData.disponibilite || "disponible",
         };
 
-        // Gérer selon le type d'employé
         if (employeeType === "chef_brigade") {
-          // Vérifier que id_brigade existe et n'est pas vide
           if (!formData.id_brigade || formData.id_brigade === "" || formData.id_brigade === "0") {
-            console.error("Erreur: id_brigade invalide ou vide", formData.id_brigade);
             showAlert("error", "Veuillez sélectionner une brigade valide pour le chef de brigade");
             return;
           }
           const brigadeId = Number(formData.id_brigade);
           if (isNaN(brigadeId) || brigadeId <= 0) {
-            console.error("Erreur: id_brigade invalide après conversion", formData.id_brigade, "->", brigadeId);
             showAlert("error", "Veuillez sélectionner une brigade valide pour le chef de brigade");
             return;
           }
           payload.isChefBrigade = true;
           payload.id_brigade = brigadeId;
-          payload.specialite = undefined; // Pas de spécialité pour chef de brigade
+          payload.specialite = undefined;
         } else if (employeeType === "chef_magasinier") {
           payload.isChefMagasinier = true;
           payload.specialite = "Chef magasinier";
@@ -315,10 +292,6 @@ export default function Employes() {
           payload.id_equipe = equipeId;
           payload.specialite = employeData.specialite?.trim() || undefined;
         }
-
-        console.log("Type d'employé:", employeeType);
-        console.log("formData.id_brigade:", formData.id_brigade);
-        console.log("Payload envoyé:", JSON.stringify(payload, null, 2));
 
         const response = await fetch("/api/employes", {
           method: "POST",
@@ -375,245 +348,238 @@ export default function Employes() {
   };
 
   const handleNextStep = () => {
-    // Valider les champs de base
     if (!formData.prenom?.trim() || !formData.nom?.trim() ||
       !formData.fonction?.trim() || !formData.contact?.trim()) {
       showAlert("error", "Veuillez remplir tous les champs obligatoires");
       return;
     }
-    setEmployeeType("employe"); // Ou laissez vide pour que l'utilisateur choisisse
+    setEmployeeType("employe");
   };
 
   const transferEmployee = (employee: Employee) => {
-    // Logique de transfert - à implémenter selon les besoins
-    alert(`Transfert de l'employé ${employee.prenom} ${employee.nom} - Fonctionnalité à développer`);
+    window.alert(`Transfert de l'employé ${employee.prenom} ${employee.nom} - Fonctionnalité à développer`);
+  };
+
+  const getInitials = (prenom: string, nom: string) => {
+    return `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase();
+  };
+
+  const getAvatarGradient = (id: string) => {
+    const gradients = [
+      "from-blue-500 to-cyan-400",
+      "from-purple-500 to-pink-400",
+      "from-emerald-500 to-teal-400",
+      "from-orange-500 to-amber-400",
+      "from-rose-500 to-red-400",
+      "from-indigo-500 to-violet-400",
+    ];
+    const index = parseInt(id) % gradients.length;
+    return gradients[index];
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
       {/* Alerte */}
       {alert && (
-        <Alert className={`fixed top-4 right-4 z-50 w-96 shadow-lg border-l-4 ${alert.type === "success"
-            ? "border-green-500 bg-green-50"
-            : "border-red-500 bg-red-50"
+        <Alert className={`fixed top-4 right-4 z-50 w-96 shadow-2xl border-l-4 backdrop-blur-sm ${alert.type === "success"
+            ? "border-emerald-500 bg-emerald-50/95"
+            : "border-red-500 bg-red-50/95"
           }`}>
-          <AlertDescription className={`font-medium ${alert.type === "success" ? "text-green-800" : "text-red-800"
+          <AlertDescription className={`font-medium ${alert.type === "success" ? "text-emerald-800" : "text-red-800"
             }`}>
             {alert.message}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* En-tête */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Gestion des Employés
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Gérez les employés du service infrastructure
-          </p>
+      {/* En-tête spectaculaire */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-8">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        
+        <div className="relative flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold text-white mb-2">
+              Gestion des Employés
+            </h1>
+            <p className="text-blue-200/80 text-lg">
+              {filteredEmployees.length} employé{filteredEmployees.length > 1 ? 's' : ''} dans le service infrastructure
+            </p>
+          </div>
+          <Button
+            size="lg"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 shadow-xl transition-all duration-300 hover:scale-105"
+            onClick={() => openDialog("add")}
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Ajouter un employé
+          </Button>
         </div>
-        <Button
-          className="shadow-soft bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-          onClick={() => openDialog("add")}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter un employé
-        </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-soft border-l-4 border-l-blue-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-soft border-l-4 border-l-green-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Disponibles</p>
-                <p className="text-2xl font-bold text-green-600">{stats.disponible}</p>
-              </div>
-              <UserCheck className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-soft border-l-4 border-l-orange-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Affectés</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.affecte}</p>
-              </div>
-              <Users className="h-8 w-8 text-orange-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-soft border-l-4 border-l-red-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Absents</p>
-                <p className="text-2xl font-bold text-red-600">{stats.absent}</p>
-              </div>
-              <UserX className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search */}
-      <Card className="shadow-soft">
-        <CardContent className="pt-6">
+      {/* Barre de recherche élégante */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-2xl blur-xl" />
+        <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg p-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <Input
               placeholder="Rechercher par nom, prénom, fonction ou spécialité..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-12 pr-4 py-6 text-lg border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Employees Table */}
-      <Card className="shadow-soft">
-        <CardHeader>
-          <CardTitle>Liste des Employés ({filteredEmployees.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center text-muted-foreground py-8">
-              Chargement des employés...
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>ID</TableHead>
-                    <TableHead>Nom Complet</TableHead>
-                    <TableHead>Fonction</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Spécialité</TableHead>
-                    <TableHead>Disponibilité</TableHead>
-                    <TableHead>Tâche Actuelle / Absence</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredEmployees.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
-                        Aucun employé trouvé
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredEmployees.map((employee) => (
-                    <TableRow key={employee.id} className="hover:bg-muted/30 transition-smooth">
-                      <TableCell className="font-medium">{employee.id}</TableCell>
-                      <TableCell>
-                        <div className="font-medium text-foreground">
-                          {employee.prenom} {employee.nom}
-                        </div>
-                      </TableCell>
-                      <TableCell>{employee.fonction}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3" />
-                          {employee.contact}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Star className="h-3 w-3 text-yellow-500" />
-                          {employee.specialite || "Non spécifiée"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={disponibiliteVariants[employee.disponibilite]}>
-                          {disponibiliteLabels[employee.disponibilite]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {employee.tacheActuelle && (
-                          <span className="text-sm">{employee.tacheActuelle}</span>
-                        )}
-                        {employee.dateAbsence && (
-                          <div className="text-sm">
-                            <div className="font-medium">
-                              {employee.typeAbsence === "conge" ? "Congé" : "Maladie"}
-                            </div>
-                            <div className="text-muted-foreground text-xs">
-                              Depuis le {new Date(employee.dateAbsence).toLocaleDateString()}
-                            </div>
-                          </div>
-                        )}
-                        {employee.disponibilite === "disponible" && !employee.tacheActuelle && (
-                          <span className="text-sm text-muted-foreground">Aucune affectation</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDialog("details", employee)}
-                            title="Voir détails"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDialog("edit", employee)}
-                            title="Modifier"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => transferEmployee(employee)}
-                            title="Transférer à une autre tâche"
-                          >
-                            <Send className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => openDialog("delete", employee)}
-                            title="Supprimer"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Grille d'employés */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(8)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center">
+                  <div className="w-20 h-20 rounded-full bg-gray-200 mb-4" />
+                  <div className="h-5 bg-gray-200 rounded w-32 mb-2" />
+                  <div className="h-4 bg-gray-200 rounded w-24" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredEmployees.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+            <Users className="h-12 w-12 text-gray-400" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">Aucun employé trouvé</h3>
+          <p className="text-gray-500">Essayez de modifier votre recherche ou ajoutez un nouvel employé</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredEmployees.map((employee, index) => (
+            <Card 
+              key={employee.id} 
+              className="group relative overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white"
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              {/* Bande de disponibilité */}
+              <div className={`absolute top-0 left-0 right-0 h-1 ${
+                employee.disponibilite === 'disponible' 
+                  ? 'bg-gradient-to-r from-emerald-400 to-green-500' 
+                  : employee.disponibilite === 'affecte' 
+                  ? 'bg-gradient-to-r from-amber-400 to-orange-500'
+                  : 'bg-gradient-to-r from-red-400 to-rose-500'
+              }`} />
+              
+              {/* Effet de hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-purple-500/0 group-hover:from-blue-500/5 group-hover:to-purple-500/5 transition-all duration-500" />
+              
+              <CardContent className="p-6 relative">
+                {/* Avatar et infos principales */}
+                <div className="flex flex-col items-center text-center mb-4">
+                  <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getAvatarGradient(employee.id)} flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                    {getInitials(employee.prenom, employee.nom)}
+                  </div>
+                  
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">
+                    {employee.prenom} {employee.nom}
+                  </h3>
+                  
+                  <Badge variant={disponibiliteVariants[employee.disponibilite]} className="mb-3">
+                    {disponibiliteLabels[employee.disponibilite]}
+                  </Badge>
+                </div>
 
-      {/* Dialog d'ajout/modification */}
+                {/* Détails */}
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="h-4 w-4 text-blue-500" />
+                    </div>
+                    <span className="truncate">{employee.fonction}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                      <Phone className="h-4 w-4 text-emerald-500" />
+                    </div>
+                    <span>{employee.contact}</span>
+                  </div>
+                  
+                  {employee.specialite && (
+                    <div className="flex items-center gap-3 text-gray-600">
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                        <Star className="h-4 w-4 text-amber-500" />
+                      </div>
+                      <span className="truncate">{employee.specialite}</span>
+                    </div>
+                  )}
+                  
+                  {employee.tacheActuelle && (
+                    <div className="flex items-center gap-3 text-gray-600">
+                      <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                        <MapPin className="h-4 w-4 text-purple-500" />
+                      </div>
+                      <span className="truncate">{employee.tacheActuelle}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions au hover */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white via-white to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                  <div className="flex justify-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 hover:bg-blue-50 hover:text-blue-600"
+                      onClick={() => openDialog("details", employee)}
+                      title="Voir détails"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 hover:bg-emerald-50 hover:text-emerald-600"
+                      onClick={() => openDialog("edit", employee)}
+                      title="Modifier"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 hover:bg-purple-50 hover:text-purple-600"
+                      onClick={() => transferEmployee(employee)}
+                      title="Transférer"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => openDialog("delete", employee)}
+                      title="Supprimer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Dialog d'ajout/modification */}
       <Dialog open={dialog?.type === "add" || dialog?.type === "edit"} onOpenChange={closeDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               {dialog?.type === "add" ? "Ajouter un employé" : "Modifier l'employé"}
             </DialogTitle>
             <DialogDescription>
@@ -624,16 +590,15 @@ export default function Employes() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Indicateur d'étape - seulement en mode ajout */}
           {dialog?.type === "add" && (
             <div className="flex space-x-1 rounded-lg bg-muted p-1 mb-4">
-              <div className={`flex-1 text-center py-1 rounded text-sm font-medium ${employeeType === ""
+              <div className={`flex-1 text-center py-2 rounded-md text-sm font-medium transition-all ${employeeType === ""
                   ? "bg-white text-foreground shadow-sm"
                   : "text-muted-foreground"
                 }`}>
                 Étape 1: Informations
               </div>
-              <div className={`flex-1 text-center py-1 rounded text-sm font-medium ${employeeType !== ""
+              <div className={`flex-1 text-center py-2 rounded-md text-sm font-medium transition-all ${employeeType !== ""
                   ? "bg-white text-foreground shadow-sm"
                   : "text-muted-foreground"
                 }`}>
@@ -643,7 +608,6 @@ export default function Employes() {
           )}
 
           <div className="grid gap-4 py-4">
-            {/* ÉTAPE 1 : Informations de base (seulement visible à l'étape 1) */}
             {dialog?.type === "add" && employeeType === "" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -712,7 +676,6 @@ export default function Employes() {
               </div>
             )}
 
-            {/* ÉTAPE 2 : Type d'employé et configuration - seulement en mode ajout */}
             {dialog?.type === "add" && employeeType !== "" && (
               <div className="space-y-4">
                 <div className="grid gap-2">
@@ -724,7 +687,6 @@ export default function Employes() {
                     value={employeeType}
                     onValueChange={(value: EmployeeType) => {
                       setEmployeeType(value);
-                      // Réinitialiser les champs selon le type
                       setFormData({
                         ...formData,
                         isChefBrigade: value === "chef_brigade",
@@ -751,9 +713,6 @@ export default function Employes() {
                   </Select>
                 </div>
 
-                {/* Configuration spécifique selon le type */}
-
-                {/* Chef de brigade : Sélection de brigade */}
                 {employeeType === "chef_brigade" && (
                   <div className="grid gap-2">
                     <Label htmlFor="id_brigade" className="flex items-center gap-2">
@@ -790,21 +749,16 @@ export default function Employes() {
                   </div>
                 )}
 
-                {/* Employé simple : Sélection en 2 étapes */}
                 {employeeType === "employe" && (
                   <div className="space-y-4">
-                    {/* Brigade et Équipe côte à côte */}
                     <div className="grid grid-cols-2 gap-4">
-                      {/* Brigade */}
                       <div className="grid gap-2">
                         <Label htmlFor="id_brigade_employe" className="flex items-center gap-2">
                           <Shield className="h-4 w-4" />
                           Brigade *
                           {formData.id_brigade && (
                             <Badge variant="outline" className="text-xs">
-                              {
-                                equipes.filter(e => e.id_brigade === Number(formData.id_brigade)).length
-                              } équipe(s)
+                              {equipes.filter(e => e.id_brigade === Number(formData.id_brigade)).length} équipe(s)
                             </Badge>
                           )}
                         </Label>
@@ -841,7 +795,6 @@ export default function Employes() {
                         </Select>
                       </div>
 
-                      {/* Équipe */}
                       <div className="grid gap-2">
                         <Label htmlFor="id_equipe" className="flex items-center gap-2">
                           <Users className="h-4 w-4" />
@@ -852,9 +805,7 @@ export default function Employes() {
                           onValueChange={(value) => setFormData({ ...formData, id_equipe: value })}
                           disabled={!formData.id_brigade}
                         >
-                          <SelectTrigger className={
-                            !formData.id_brigade ? "bg-muted text-muted-foreground" : ""
-                          }>
+                          <SelectTrigger className={!formData.id_brigade ? "bg-muted text-muted-foreground" : ""}>
                             <SelectValue
                               placeholder={
                                 formData.id_brigade
@@ -894,7 +845,6 @@ export default function Employes() {
                       </div>
                     </div>
 
-                    {/* Spécialité */}
                     <div className="grid gap-2">
                       <Label htmlFor="specialite">Spécialité</Label>
                       <Textarea
@@ -908,9 +858,8 @@ export default function Employes() {
                   </div>
                 )}
 
-                {/* Chef magasinier : Pas de configuration supplémentaire */}
                 {employeeType === "chef_magasinier" && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex items-center gap-2 text-blue-800">
                       <Shield className="h-4 w-4" />
                       <span className="font-medium">Configuration automatique</span>
@@ -923,7 +872,6 @@ export default function Employes() {
               </div>
             )}
 
-            {/* Mode édition : afficher tout */}
             {dialog?.type === "edit" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -994,7 +942,6 @@ export default function Employes() {
           </div>
 
           <DialogFooter className="flex justify-between items-center">
-            {/* Bouton retour pour l'étape 2 */}
             {dialog?.type === "add" && employeeType !== "" && (
               <Button
                 type="button"
@@ -1005,13 +952,13 @@ export default function Employes() {
               </Button>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 ml-auto">
               <Button type="button" variant="outline" onClick={closeDialog}>
                 Annuler
               </Button>
               <Button
                 type="button"
-                onClick={employeeType === "" ? handleNextStep : handleSubmit}
+                onClick={employeeType === "" && dialog?.type === "add" ? handleNextStep : handleSubmit}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 disabled={
                   dialog?.type === "edit" && (
@@ -1036,58 +983,58 @@ export default function Employes() {
       <Dialog open={dialog?.type === "details"} onOpenChange={closeDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Détails de l'employé
             </DialogTitle>
           </DialogHeader>
           {dialog?.employee && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              <div className="flex flex-col items-center">
+                <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${getAvatarGradient(dialog.employee.id)} flex items-center justify-center text-white text-3xl font-bold shadow-xl mb-4`}>
+                  {getInitials(dialog.employee.prenom, dialog.employee.nom)}
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {dialog.employee.prenom} {dialog.employee.nom}
+                </h3>
+                <Badge variant={disponibiliteVariants[dialog.employee.disponibilite]} className="mt-2">
+                  {disponibiliteLabels[dialog.employee.disponibilite]}
+                </Badge>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm text-muted-foreground">ID</Label>
-                  <p className="font-medium">{dialog.employee.id}</p>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">ID</Label>
+                  <p className="font-semibold mt-1">{dialog.employee.id}</p>
                 </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Disponibilité</Label>
-                  <Badge variant={disponibiliteVariants[dialog.employee.disponibilite]}>
-                    {disponibiliteLabels[dialog.employee.disponibilite]}
-                  </Badge>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Contact</Label>
+                  <p className="font-semibold mt-1">{dialog.employee.contact}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm text-muted-foreground">Prénom</Label>
-                  <p className="font-medium">{dialog.employee.prenom}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Nom</Label>
-                  <p className="font-medium">{dialog.employee.nom}</p>
-                </div>
+
+              <div className="bg-gray-50 rounded-xl p-4">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Fonction</Label>
+                <p className="font-semibold mt-1">{dialog.employee.fonction}</p>
               </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Fonction</Label>
-                <p className="font-medium">{dialog.employee.fonction}</p>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Contact</Label>
-                <p className="font-medium">{dialog.employee.contact}</p>
-              </div>
+
               {dialog.employee.specialite && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Spécialité</Label>
-                  <p className="font-medium">{dialog.employee.specialite}</p>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Spécialité</Label>
+                  <p className="font-semibold mt-1">{dialog.employee.specialite}</p>
                 </div>
               )}
+
               {dialog.employee.tacheActuelle && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Tâche actuelle</Label>
-                  <p className="font-medium">{dialog.employee.tacheActuelle}</p>
+                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                  <Label className="text-xs text-blue-600 uppercase tracking-wide">Tâche actuelle</Label>
+                  <p className="font-semibold mt-1 text-blue-900">{dialog.employee.tacheActuelle}</p>
                 </div>
               )}
+
               {dialog.employee.dateAbsence && (
-                <div>
-                  <Label className="text-sm text-muted-foreground">Absence</Label>
-                  <p className="font-medium">
+                <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                  <Label className="text-xs text-amber-600 uppercase tracking-wide">Absence</Label>
+                  <p className="font-semibold mt-1 text-amber-900">
                     {dialog.employee.typeAbsence === "conge" ? "Congé" : "Maladie"} depuis le{" "}
                     {new Date(dialog.employee.dateAbsence).toLocaleDateString()}
                   </p>
@@ -1102,7 +1049,7 @@ export default function Employes() {
       <AlertDialog open={dialog?.type === "delete"} onOpenChange={closeDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl">Êtes-vous sûr ?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <div>
                 Vous êtes sur le point de supprimer{" "}
@@ -1111,9 +1058,9 @@ export default function Employes() {
                 </span>.
               </div>
 
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                  <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-destructive">
                     <span className="font-semibold">Suppression en cascade :</span>
                     {" "}Toutes les données associées (absences, affectations) seront également supprimées.
@@ -1125,7 +1072,6 @@ export default function Employes() {
                 Cette action est irréversible. Confirmez-vous la suppression ?
               </div>
             </AlertDialogDescription>
-
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>

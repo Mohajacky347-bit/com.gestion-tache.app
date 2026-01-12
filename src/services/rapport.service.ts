@@ -65,5 +65,9 @@ export const rapportService = {
 
   async updateValidation(id: string, validation: "En attente" | "À réviser" | "Approuvé", commentaire?: string): Promise<boolean> {
     return rapportModel.updateValidation(id, validation, commentaire);
+  },
+
+  async getByTaskId(idTache: string): Promise<(RapportEntity & { photos: PhotoEntity[]; phaseNom?: string })[]> {
+    return rapportModel.findByTaskId(idTache);
   }
 };

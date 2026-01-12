@@ -1,15 +1,58 @@
 import { NextRequest } from "next/server";
 import { equipeService } from "@/services/equipe.service";
+import { equipeModel } from "@/models/equipe.model"; // AJOUTEZ CET IMPORT
 
 export const equipeController = {
-  async list(_req: NextRequest) {
+  async list(req: NextRequest) { // MODIFIEZ pour accepter la requête
     try {
-      const data = await equipeService.list();
+      const { searchParams } = new URL(req.url);
+      const brigadeId = searchParams.get('brigade');
+      
+      let data;
+      if (brigadeId) {
+        // Utilisez le modèle directement pour le filtrage par brigade
+        data = await equipeModel.findByBrigade(parseInt(brigadeId));
+      } else {
+        data = await equipeService.list();
+      }
+      
       return Response.json(data);
     } catch (error) {
       console.error("Erreur lors de la récupération des équipes:", error);
       return Response.json(
         { error: "Erreur lors de la récupération des équipes" },
+        { status: 500 }
+      );
+    }
+  },
+
+  // AJOUTEZ CETTE NOUVELLE MÉTHODE
+  async getById(req: NextRequest) {
+    try {
+      const { searchParams } = new URL(req.url);
+      const id = searchParams.get('id');
+      
+      if (!id) {
+        return Response.json(
+          { error: "ID manquant" },
+          { status: 400 }
+        );
+      }
+      
+      const equipe = await equipeService.findById(parseInt(id));
+      
+      if (!equipe) {
+        return Response.json(
+          { error: "Équipe non trouvée" },
+          { status: 404 }
+        );
+      }
+      
+      return Response.json(equipe);
+    } catch (error) {
+      console.error("Erreur récupération équipe:", error);
+      return Response.json(
+        { error: "Erreur lors de la récupération de l'équipe" },
         { status: 500 }
       );
     }
@@ -42,5 +85,3 @@ export const equipeController = {
     }
   },
 };
-
-

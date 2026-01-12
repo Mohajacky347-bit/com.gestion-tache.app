@@ -9,10 +9,10 @@ export function middleware(request: NextRequest) {
 
   // Vérifier si l'utilisateur est authentifié via localStorage (côté client)
   // Note: En production, ceci devrait être géré côté serveur avec des cookies sécurisés
-  const user = request.cookies.get('user')
+  const session = request.cookies.get('session_token')
   
   // Si pas d'utilisateur et pas sur login, rediriger vers login
-  if (!user && request.nextUrl.pathname !== '/login') {
+  if (!session && request.nextUrl.pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

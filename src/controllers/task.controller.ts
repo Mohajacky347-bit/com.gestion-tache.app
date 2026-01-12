@@ -2,9 +2,23 @@ import { NextRequest } from "next/server";
 import { taskService } from "@/services/task.service";
 
 export const taskController = {
-  async list(_req: NextRequest) {
+  async list(req: NextRequest) {
     try {
-      const data = await taskService.list();
+      const { searchParams } = new URL(req.url);
+      const brigadeId = searchParams.get("brigadeId");
+      const equipeId = searchParams.get("equipeId");
+
+      const filters: { brigadeId?: number; equipeId?: number } = {};
+      if (brigadeId) {
+        filters.brigadeId = Number(brigadeId);
+      }
+      if (equipeId) {
+        filters.equipeId = Number(equipeId);
+      }
+
+      const data = await taskService.list(
+        filters.brigadeId || filters.equipeId ? filters : undefined
+      );
       return Response.json(data);
     } catch (error) {
       console.error("Erreur liste tâches:", error);
@@ -32,8 +46,13 @@ export const taskController = {
         return Response.json({ error: "ID manquant" }, { status: 400 });
       }
       
-      const success = await taskService.update(id, taskData);
-      return Response.json({ success });
+      const updated = await taskService.update(id, taskData);
+
+      if (!updated) {
+        return Response.json({ error: "Tâche introuvable" }, { status: 404 });
+      }
+
+      return Response.json(updated);
     } catch (error) {
       console.error("Erreur modification tâche:", error);
       return Response.json({ error: "Erreur lors de la modification de la tâche" }, { status: 500 });

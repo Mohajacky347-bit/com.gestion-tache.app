@@ -106,7 +106,7 @@ export default function Materiels() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/materiels", { cache: "no-store" });
+      const res = await fetch("/api/materiels");
       if (!res.ok) throw new Error("Erreur lors du chargement des matériels");
       const data: Material[] = await res.json();
       setMaterials(data);

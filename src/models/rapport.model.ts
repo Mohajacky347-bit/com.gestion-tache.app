@@ -278,6 +278,53 @@ async createWithPhotos(rapport: Omit<RapportEntity, 'id'>, photos: { buffer: Buf
       console.error('Error fetching rapports with photos:', error);
       throw error;
     }
+  },
+
+  async findByTaskId(idTache: string): Promise<(RapportEntity & { photos: PhotoEntity[]; phaseNom?: string })[]> {
+    try {
+      const [rows] = await dbPool.query(
+        `SELECT 
+          r.id, 
+          r.description, 
+          r.dateRapport, 
+          r.photoUrl,
+          r.avancement,
+          r.idPhase,
+          r.validation,
+          p.nom as phaseNom
+         FROM rapport r
+         INNER JOIN phase p ON r.idPhase = p.id
+         WHERE p.idTache = ?
+         ORDER BY r.dateRapport DESC`,
+        [idTache]
+      );
+      
+      const rowsArray = rows as any[];
+      if (!rowsArray.length) return [];
+      
+      // Charger les photos pour tous les rapports en parallèle
+      const rapports = await Promise.all(
+        rowsArray.map(async (row) => {
+          const photos = await photoService.getByRapport(String(row.id));
+          return {
+            id: String(row.id),
+            description: String(row.description),
+            dateRapport: new Date(row.dateRapport).toISOString().split('T')[0],
+            photoUrl: row.photoUrl ? String(row.photoUrl) : undefined,
+            avancement: Number(row.avancement),
+            idPhase: String(row.idPhase),
+            validation: mapValidation(row.validation),
+            photos,
+            phaseNom: row.phaseNom ? String(row.phaseNom) : undefined
+          };
+        })
+      );
+      
+      return rapports;
+    } catch (error) {
+      console.error('Error fetching rapports by task id:', error);
+      throw error;
+    }
   }
 
 };

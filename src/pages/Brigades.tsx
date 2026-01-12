@@ -57,7 +57,7 @@ export default function Brigades() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/brigades", { cache: "no-store" });
+      const res = await fetch("/api/brigades");
       if (!res.ok) throw new Error("Erreur lors du chargement des brigades");
       const data: Brigade[] = await res.json();
       setBrigades(data);

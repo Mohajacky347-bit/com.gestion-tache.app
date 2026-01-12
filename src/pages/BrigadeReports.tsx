@@ -140,12 +140,12 @@ export default function Rapports() {
       setLoading(true);
       
       // Récupérer les rapports
-      const rapportsRes = await fetch("/api/rapports", { cache: "no-store" });
+      const rapportsRes = await fetch("/api/rapports");
       if (!rapportsRes.ok) throw new Error("Erreur lors du chargement des rapports");
       const rapportsData = await rapportsRes.json();
 
       // Récupérer les phases avec leurs tâches
-      const phasesRes = await fetch("/api/phases/with-taches", { cache: "no-store" });
+      const phasesRes = await fetch("/api/phases/with-taches");
       if (!phasesRes.ok) throw new Error("Erreur lors du chargement des phases");
       const phasesData = await phasesRes.json();
 

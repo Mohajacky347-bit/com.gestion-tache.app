@@ -131,12 +131,12 @@ export default function Phases() {
       setLoading(true);
       
       // Récupérer les phases
-      const phasesRes = await fetch("/api/phases", { cache: "no-store" });
+      const phasesRes = await fetch("/api/phases");
       if (!phasesRes.ok) throw new Error("Erreur lors du chargement des phases");
       const phasesData = await phasesRes.json();
 
       // Récupérer les tâches
-      const tachesRes = await fetch("/api/taches", { cache: "no-store" });
+      const tachesRes = await fetch("/api/taches");
       if (!tachesRes.ok) throw new Error("Erreur lors du chargement des tâches");
       const tachesData = await tachesRes.json();
 

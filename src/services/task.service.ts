@@ -1,16 +1,32 @@
 import { taskModel, TaskEntity, PhaseEntity } from "@/models/task.model";
+import { brigadeModel } from "@/models/brigade.model";
+import { equipeModel, EquipeMember } from "@/models/equipe.model";
 import { notificationService } from "@/services/notification.service";
+import { rapportService } from "@/services/rapport.service";
 
 export interface TaskWithDetails {
   id: string;
   title: string;
-  employes: string[];
+  id_brigade: string;
+  id_equipe: string;
+  nom_brigade?: string;
+  nom_equipe?: string;
+  lieu?: string;
   materiels: { nom: string; quantite: number }[];
   dateDebut: string;
   dateFin: string;
   dateFinReel?: string;
   status: "pending" | "paused" | "progress" | "completed";
   phases: Phase[];
+  equipeMembres?: EquipeMember[];
+  rapports?: Array<{
+    id: string;
+    description: string;
+    dateRapport: string;
+    avancement: number;
+    validation: string;
+    phaseNom?: string;
+  }>;
 }
 
 interface Phase {
@@ -44,20 +60,36 @@ const mapStatusToStatut = (status: "pending" | "paused" | "progress" | "complete
 };
 
 export const taskService = {
-  async list(): Promise<TaskWithDetails[]> {
-    const tasks = await taskModel.findAll();
+  async list(filters?: { brigadeId?: number; equipeId?: number }): Promise<TaskWithDetails[]> {
+    const tasks = await taskModel.findAll(filters);
     
     const tasksWithDetails: TaskWithDetails[] = [];
     
     for (const task of tasks) {
-      const employes = await taskModel.getEmployesByTask(task.id);
+      // Récupérer les noms de brigade et équipe
+      let nom_brigade: string | undefined;
+      let nom_equipe: string | undefined;
+      
+      if (task.id_brigade) {
+        const brigade = await brigadeModel.findById(task.id_brigade);
+        nom_brigade = brigade?.nom_brigade;
+      }
+      
+      if (task.id_equipe) {
+        const equipe = await equipeModel.findById(task.id_equipe);
+        nom_equipe = equipe?.nom_equipe;
+      }
+      
       const materiels = await taskModel.getMaterielsByTask(task.id);
       const phases = await taskModel.getPhasesByTask(task.id);
       
       tasksWithDetails.push({
         id: task.id,
         title: task.description,
-        employes,
+        id_brigade: task.id_brigade?.toString() || "",
+        id_equipe: task.id_equipe?.toString() || "",
+        nom_brigade,
+        nom_equipe,
         materiels,
         dateDebut: task.dateDebut,
         dateFin: task.dateFin,
@@ -82,14 +114,52 @@ export const taskService = {
     const task = await taskModel.findById(id);
     if (!task) return null;
     
-    const employes = await taskModel.getEmployesByTask(id);
+    // Récupérer les noms de brigade et équipe
+    let nom_brigade: string | undefined;
+    let nom_equipe: string | undefined;
+    let lieu: string | undefined;
+    let equipeMembres: EquipeMember[] | undefined;
+    
+    if (task.id_brigade) {
+      const brigade = await brigadeModel.findById(task.id_brigade);
+      nom_brigade = brigade?.nom_brigade;
+      lieu = brigade?.lieu;
+    }
+    
+    if (task.id_equipe) {
+      const equipe = await equipeModel.findById(task.id_equipe);
+      nom_equipe = equipe?.nom_equipe;
+      
+      // Récupérer les membres de l'équipe
+      if (task.id_brigade) {
+        const equipesWithMembers = await equipeModel.findWithMembersByBrigade(task.id_brigade);
+        const equipeFound = equipesWithMembers.find(e => e.id_equipe === task.id_equipe);
+        equipeMembres = equipeFound?.members || [];
+      }
+    }
+    
     const materiels = await taskModel.getMaterielsByTask(id);
     const phases = await taskModel.getPhasesByTask(id);
+    
+    // Récupérer les rapports associés à cette tâche
+    const rapportsData = await rapportService.getByTaskId(id);
+    const rapports = rapportsData.map(rapport => ({
+      id: rapport.id,
+      description: rapport.description,
+      dateRapport: rapport.dateRapport,
+      avancement: rapport.avancement,
+      validation: rapport.validation,
+      phaseNom: rapport.phaseNom
+    }));
     
     return {
       id: task.id,
       title: task.description,
-      employes,
+      id_brigade: task.id_brigade?.toString() || "",
+      id_equipe: task.id_equipe?.toString() || "",
+      nom_brigade,
+      nom_equipe,
+      lieu,
       materiels,
       dateDebut: task.dateDebut,
       dateFin: task.dateFin,
@@ -103,7 +173,9 @@ export const taskService = {
         dateDebut: phase.dateDebut,
         dateFin: phase.dateFin,
         statut: phase.statut as "En attente" | "En cours" | "Terminé"
-      }))
+      })),
+      equipeMembres,
+      rapports
     };
   },
 
@@ -113,13 +185,14 @@ export const taskService = {
       dateDebut: data.dateDebut,
       dateFin: data.dateFin,
       dateFinReel: data.dateFinReel,
-      statut: mapStatusToStatut(data.status)
+      statut: mapStatusToStatut(data.status),
+      id_brigade: data.id_brigade ? parseInt(data.id_brigade) : undefined,
+      id_equipe: data.id_equipe ? parseInt(data.id_equipe) : undefined
     };
     
     const createdTask = await taskModel.create(taskEntity);
     
-    // Créer les relations
-    await taskModel.assignEmployes(createdTask.id, data.employes);
+    // Créer les relations avec les matériels
     await taskModel.assignMateriels(createdTask.id, data.materiels);
     
     // Créer les phases
@@ -133,6 +206,20 @@ export const taskService = {
     }));
     
     await taskModel.createPhases(createdTask.id, phaseEntities);
+    
+    // Récupérer les noms pour la réponse
+    let nom_brigade: string | undefined;
+    let nom_equipe: string | undefined;
+    
+    if (data.id_brigade) {
+      const brigade = await brigadeModel.findById(parseInt(data.id_brigade));
+      nom_brigade = brigade?.nom_brigade;
+    }
+    
+    if (data.id_equipe) {
+      const equipe = await equipeModel.findById(parseInt(data.id_equipe));
+      nom_equipe = equipe?.nom_equipe;
+    }
     
     try {
       await notificationService.createForRole({
@@ -150,43 +237,50 @@ export const taskService = {
 
     return {
       ...data,
-      id: createdTask.id
+      id: createdTask.id,
+      nom_brigade,
+      nom_equipe
     };
   },
 
-  async update(id: string, data: Omit<TaskWithDetails, "id">): Promise<boolean> {
+  async update(id: string, data: Omit<TaskWithDetails, "id">): Promise<TaskWithDetails | null> {
     const taskEntity: Omit<TaskEntity, "id"> = {
       description: data.title,
       dateDebut: data.dateDebut,
       dateFin: data.dateFin,
       dateFinReel: data.dateFinReel,
-      statut: mapStatusToStatut(data.status)
+      statut: mapStatusToStatut(data.status),
+      id_brigade: data.id_brigade ? parseInt(data.id_brigade) : undefined,
+      id_equipe: data.id_equipe ? parseInt(data.id_equipe) : undefined
     };
     
     const success = await taskModel.update(id, taskEntity);
     
-    if (success) {
-      // Mettre à jour les relations
-      await taskModel.assignEmployes(id, data.employes);
-      await taskModel.assignMateriels(id, data.materiels);
-      
-      // Mettre à jour les phases
-      const phaseEntities: Omit<PhaseEntity, "id" | "idTache">[] = data.phases.map(phase => ({
-        nom: phase.nom,
-        description: phase.description,
-        dureePrevue: phase.dureePrevue,
-        dateDebut: phase.dateDebut,
-        dateFin: phase.dateFin,
-        statut: phase.statut
-      }));
-      
-      await taskModel.createPhases(id, phaseEntities);
+    if (!success) {
+      return null;
     }
     
-    return success;
+    await taskModel.assignMateriels(id, data.materiels);
+    
+    const phaseEntities: Omit<PhaseEntity, "id" | "idTache">[] = data.phases.map(phase => ({
+      nom: phase.nom,
+      description: phase.description,
+      dureePrevue: phase.dureePrevue,
+      dateDebut: phase.dateDebut,
+      dateFin: phase.dateFin,
+      statut: phase.statut
+    }));
+    
+    await taskModel.createPhases(id, phaseEntities);
+
+    return this.get(id);
   },
 
   async delete(id: string): Promise<boolean> {
     return taskModel.delete(id);
+  },
+
+  async getMaterialsByBrigade(id_brigade: number) {
+    return taskModel.findMaterialsByBrigade(id_brigade);
   }
 };

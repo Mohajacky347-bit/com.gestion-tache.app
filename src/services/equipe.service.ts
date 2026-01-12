@@ -1,4 +1,4 @@
-import { equipeModel, EquipeEntity } from "@/models/equipe.model";
+import { equipeModel, EquipeEntity, EquipeWithMembers } from "@/models/equipe.model";
 
 export const equipeService = {
   async list(): Promise<EquipeEntity[]> {
@@ -13,17 +13,19 @@ export const equipeService = {
     return equipeModel.findByBrigade(id_brigade);
   },
 
-  async create(equipe: Pick<EquipeEntity, "nom_equipe" | "specialite" | "id_brigade">): Promise<EquipeEntity> {
+  async create(equipe: Omit<EquipeEntity, 'id_equipe' | 'brigade_nom' | 'membres'>): Promise<EquipeEntity> {
     return equipeModel.create(equipe);
   },
 
-  async update(id: number, equipe: Partial<Pick<EquipeEntity, "nom_equipe" | "specialite" | "id_brigade">>): Promise<boolean> {
+  async update(id: number, equipe: Partial<Omit<EquipeEntity, 'id_equipe' | 'brigade_nom' | 'membres'>>): Promise<boolean> {
     return equipeModel.update(id, equipe);
   },
 
   async delete(id: number): Promise<boolean> {
     return equipeModel.delete(id);
   },
+
+  async getWithMembersByBrigade(id_brigade: number): Promise<EquipeWithMembers[]> {
+    return equipeModel.findWithMembersByBrigade(id_brigade);
+  },
 };
-
-

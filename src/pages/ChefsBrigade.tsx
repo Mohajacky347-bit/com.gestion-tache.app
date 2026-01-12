@@ -36,7 +36,7 @@ export default function ChefsBrigade() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/chefs-brigade", { cache: "no-store" });
+      const res = await fetch("/api/chefs-brigade");
       if (!res.ok) throw new Error("Erreur lors du chargement des chefs de brigade");
       const data: ChefBrigade[] = await res.json();
       setChefs(data);

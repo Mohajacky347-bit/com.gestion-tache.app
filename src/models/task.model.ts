@@ -7,6 +7,8 @@ export interface TaskEntity {
   dateFin: string;
   dateFinReel?: string;
   statut: string;
+  id_brigade?: number;
+  id_equipe?: number;
 }
 
 export interface PhaseEntity {
@@ -21,24 +23,82 @@ export interface PhaseEntity {
 }
 
 export const taskModel = {
-  async findAll(): Promise<TaskEntity[]> {
+  async findAll(filters?: { brigadeId?: number; equipeId?: number }): Promise<TaskEntity[]> {
+    const where: string[] = [];
+    const params: any[] = [];
+
+    if (filters?.brigadeId) {
+      where.push("id_brigade = ?");
+      params.push(filters.brigadeId);
+    }
+
+    if (filters?.equipeId) {
+      where.push("id_equipe = ?");
+      params.push(filters.equipeId);
+    }
+
+    const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
     const [rows] = await dbPool.query(
-      `SELECT id, description, dateDebut, datefin as dateFin, 
-              date_fin_reel as dateFinReel, statut 
-       FROM tache ORDER BY dateDebut DESC`
+      `SELECT 
+        id, 
+        description, 
+        dateDebut, 
+        datefin as dateFin, 
+        date_fin_reel as dateFinReel, 
+        statut,
+        id_brigade,
+        id_equipe
+       FROM tache 
+       ${whereClause}
+       ORDER BY dateDebut DESC`,
+      params
     );
-    return rows as TaskEntity[];
+    
+    const tasks = (rows as any[]).map(row => ({
+      id: String(row.id),
+      description: String(row.description),
+      dateDebut: String(row.dateDebut),
+      dateFin: String(row.dateFin),
+      dateFinReel: row.dateFinReel ? String(row.dateFinReel) : undefined,
+      statut: String(row.statut),
+      id_brigade: row.id_brigade ? Number(row.id_brigade) : undefined,
+      id_equipe: row.id_equipe ? Number(row.id_equipe) : undefined
+    }));
+    
+    return tasks;
   },
 
   async findById(id: string): Promise<TaskEntity | null> {
     const [rows] = await dbPool.query(
-      `SELECT id, description, dateDebut, datefin as dateFin, 
-              date_fin_reel as dateFinReel, statut 
-       FROM tache WHERE id = ? LIMIT 1`,
+      `SELECT 
+        id, 
+        description, 
+        dateDebut, 
+        datefin as dateFin, 
+        date_fin_reel as dateFinReel, 
+        statut,
+        id_brigade,
+        id_equipe
+       FROM tache 
+       WHERE id = ? LIMIT 1`,
       [id]
     );
-    const arr = rows as TaskEntity[];
-    return arr.length ? arr[0] : null;
+    
+    const arr = rows as any[];
+    if (!arr.length) return null;
+    
+    const row = arr[0];
+    return {
+      id: String(row.id),
+      description: String(row.description),
+      dateDebut: String(row.dateDebut),
+      dateFin: String(row.dateFin),
+      dateFinReel: row.dateFinReel ? String(row.dateFinReel) : undefined,
+      statut: String(row.statut),
+      id_brigade: row.id_brigade ? Number(row.id_brigade) : undefined,
+      id_equipe: row.id_equipe ? Number(row.id_equipe) : undefined
+    };
   },
 
   async create(task: Omit<TaskEntity, "id">): Promise<TaskEntity> {
@@ -52,9 +112,18 @@ export const taskModel = {
     const newId = `T${String(lastNumber + 1).padStart(3, '0')}`;
 
     await dbPool.query(
-      `INSERT INTO tache (id, description, dateDebut, datefin, date_fin_reel, statut) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [newId, task.description, task.dateDebut, task.dateFin, task.dateFinReel, task.statut]
+      `INSERT INTO tache (id, description, dateDebut, datefin, date_fin_reel, statut, id_brigade, id_equipe) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        newId, 
+        task.description, 
+        task.dateDebut, 
+        task.dateFin, 
+        task.dateFinReel, 
+        task.statut,
+        task.id_brigade || null,
+        task.id_equipe || null
+      ]
     );
     
     return {
@@ -65,60 +134,35 @@ export const taskModel = {
 
   async update(id: string, task: Omit<TaskEntity, "id">): Promise<boolean> {
     const [result] = await dbPool.query(
-      `UPDATE tache SET description = ?, dateDebut = ?, datefin = ?, 
-                         date_fin_reel = ?, statut = ? 
+      `UPDATE tache 
+       SET description = ?, dateDebut = ?, datefin = ?, 
+           date_fin_reel = ?, statut = ?, id_brigade = ?, id_equipe = ?
        WHERE id = ?`,
-      [task.description, task.dateDebut, task.dateFin, task.dateFinReel, task.statut, id]
+      [
+        task.description, 
+        task.dateDebut, 
+        task.dateFin, 
+        task.dateFinReel, 
+        task.statut,
+        task.id_brigade || null,
+        task.id_equipe || null,
+        id
+      ]
     );
     
     return (result as any).affectedRows > 0;
   },
 
   async delete(id: string): Promise<boolean> {
-    // Les contraintes CASCADE vont supprimer automatiquement les relations
     const [result] = await dbPool.query("DELETE FROM tache WHERE id = ?", [id]);
     return (result as any).affectedRows > 0;
   },
 
-  // Gestion des employés
-  async assignEmployes(idTache: string, employes: string[]): Promise<void> {
-    await dbPool.query("DELETE FROM tache_employe WHERE idTache = ?", [idTache]);
-    
-    for (const employeNom of employes) {
-      // Trouver l'ID de l'employé par son nom
-      const [employeRows] = await dbPool.query(
-        "SELECT id FROM employe WHERE CONCAT(prenom, ' ', nom) = ? LIMIT 1",
-        [employeNom]
-      );
-      const employesFound = employeRows as { id: string }[];
-      
-      if (employesFound.length > 0) {
-        await dbPool.query(
-          "INSERT INTO tache_employe (idTache, idEmploye) VALUES (?, ?)",
-          [idTache, employesFound[0].id]
-        );
-      }
-    }
-  },
-
-  async getEmployesByTask(idTache: string): Promise<string[]> {
-    const [rows] = await dbPool.query(
-      `SELECT e.nom, e.prenom 
-       FROM tache_employe te 
-       JOIN employe e ON te.idEmploye = e.id 
-       WHERE te.idTache = ?`,
-      [idTache]
-    );
-    const employes = rows as { nom: string; prenom: string }[];
-    return employes.map(emp => `${emp.prenom} ${emp.nom}`);
-  },
-
-  // Gestion des matériels
+  // Gestion des matériels (gardé pour compatibilité)
   async assignMateriels(idTache: string, materiels: { nom: string; quantite: number }[]): Promise<void> {
     await dbPool.query("DELETE FROM tache_materiel WHERE idTache = ?", [idTache]);
     
     for (const materiel of materiels) {
-      // Trouver l'ID du matériel par son nom
       const [materielRows] = await dbPool.query(
         "SELECT id FROM materiel WHERE nom = ? LIMIT 1",
         [materiel.nom]
@@ -150,7 +194,6 @@ export const taskModel = {
     await dbPool.query("DELETE FROM phase WHERE idTache = ?", [idTache]);
     
     for (const phase of phases) {
-      // Générer un ID unique pour chaque phase
       const [lastPhase] = await dbPool.query(
         "SELECT id FROM phase ORDER BY id DESC LIMIT 1"
       );
@@ -173,106 +216,71 @@ export const taskModel = {
        FROM phase WHERE idTache = ? ORDER BY dateDebut ASC`,
       [idTache]
     );
-    return rows as PhaseEntity[];
+    
+    const phases = (rows as any[]).map(row => ({
+      id: String(row.id),
+      idTache: String(row.idTache),
+      nom: String(row.nom),
+      description: String(row.description),
+      dureePrevue: Number(row.dureePrevue),
+      dateDebut: String(row.dateDebut),
+      dateFin: String(row.dateFin),
+      statut: String(row.statut)
+    }));
+    
+    return phases;
+  },
+
+  async findMaterialsByBrigade(id_brigade: number): Promise<Array<{
+    materielId: string;
+    nom: string;
+    type: string;
+    stock: number;
+    disponible: boolean;
+    quantiteUtilisee: number;
+    tache: {
+      id: string;
+      description: string;
+      statut: string;
+      dateDebut: string;
+      dateFin: string;
+    };
+  }>> {
+    const [rows] = await dbPool.query(
+      `SELECT
+        m.id as materielId,
+        m.nom,
+        m.type,
+        m.quantite as stock,
+        m.disponible,
+        tm.quantiteUtilisee,
+        t.id as tacheId,
+        t.description as tacheDescription,
+        t.statut as tacheStatut,
+        t.dateDebut,
+        t.datefin as dateFin
+      FROM tache t
+      INNER JOIN tache_materiel tm ON tm.idTache = t.id
+      INNER JOIN materiel m ON m.id = tm.idMateriel
+      WHERE t.id_brigade = ?
+      ORDER BY t.dateDebut DESC`,
+      [id_brigade]
+    );
+
+    return (rows as any[]).map(row => ({
+      materielId: String(row.materielId),
+      nom: String(row.nom),
+      type: String(row.type),
+      stock: Number(row.stock),
+      disponible: row.disponible === 1,
+      quantiteUtilisee: Number(row.quantiteUtilisee ?? 0),
+      tache: {
+        id: String(row.tacheId),
+        description: String(row.tacheDescription),
+        statut: String(row.tacheStatut),
+        dateDebut: row.dateDebut ? String(row.dateDebut) : "",
+        dateFin: row.dateFin ? String(row.dateFin) : "",
+      },
+    }));
   }
 };
-
-
-
-// import { dbPool } from "@/lib/db";
-
-// export interface TaskEntity {
-//   idTache: string;
-//   titre: string;
-//   description: string;
-//   priorite: "basse" | "normale" | "haute" | "critique";
-//   dateDebutPrev: string;
-//   dateFinPrev: string;
-//   dateDebutReel?: string | null;
-//   dateFinReel?: string | null;
-//   statut: "planifie" | "en_cours" | "termine" | "annule" | "en_pause";
-//   idPhase: string;
-// }
-
-// export const taskModel = {
-//   async findAll(): Promise<TaskEntity[]> {
-//     const [rows] = await dbPool.query(
-//       `SELECT idTache, titre, description, priorite, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut, idPhase 
-//        FROM taches 
-//        ORDER BY priorite DESC, dateDebutPrev ASC`
-//     );
-//     return rows as TaskEntity[];
-//   },
-
-//   async findById(idTache: string): Promise<TaskEntity | null> {
-//     const [rows] = await dbPool.query(
-//       `SELECT idTache, titre, description, priorite, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut, idPhase 
-//        FROM taches 
-//        WHERE idTache = ? LIMIT 1`,
-//       [idTache]
-//     );
-//     const arr = rows as TaskEntity[];
-//     return arr.length ? arr[0] : null;
-//   },
-
-//   async findByPhase(idPhase: string): Promise<TaskEntity[]> {
-//     const [rows] = await dbPool.query(
-//       `SELECT idTache, titre, description, priorite, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut, idPhase 
-//        FROM taches 
-//        WHERE idPhase = ? 
-//        ORDER BY priorite DESC, dateDebutPrev ASC`,
-//       [idPhase]
-//     );
-//     return rows as TaskEntity[];
-//   },
-
-//   async findByStatus(statut: TaskEntity['statut']): Promise<TaskEntity[]> {
-//     const [rows] = await dbPool.query(
-//       `SELECT idTache, titre, description, priorite, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut, idPhase 
-//        FROM taches 
-//        WHERE statut = ? 
-//        ORDER BY priorite DESC, dateDebutPrev ASC`,
-//       [statut]
-//     );
-//     return rows as TaskEntity[];
-//   },
-
-//   async create(task: Omit<TaskEntity, 'idTache'>): Promise<string> {
-//     const [result] = await dbPool.query(
-//       `INSERT INTO taches (titre, description, priorite, dateDebutPrev, dateFinPrev, dateDebutReel, dateFinReel, statut, idPhase) 
-//        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-//       [task.titre, task.description, task.priorite, task.dateDebutPrev, task.dateFinPrev, task.dateDebutReel, task.dateFinReel, task.statut, task.idPhase]
-//     );
-//     return (result as any).insertId;
-//   },
-
-//   async update(idTache: string, task: Partial<Omit<TaskEntity, 'idTache'>>): Promise<boolean> {
-//     const fields = [];
-//     const values = [];
-    
-//     Object.entries(task).forEach(([key, value]) => {
-//       if (value !== undefined) {
-//         fields.push(`${key} = ?`);
-//         values.push(value);
-//       }
-//     });
-    
-//     if (fields.length === 0) return false;
-    
-//     values.push(idTache);
-//     const [result] = await dbPool.query(
-//       `UPDATE taches SET ${fields.join(', ')} WHERE idTache = ?`,
-//       values
-//     );
-    
-//     return (result as any).affectedRows > 0;
-//   },
-
-//   async delete(idTache: string): Promise<boolean> {
-//     const [result] = await dbPool.query(
-//       `DELETE FROM taches WHERE idTache = ?`,
-//       [idTache]
-//     );
-//     return (result as any).affectedRows > 0;
-//   }
-// };

@@ -52,7 +52,11 @@ export function BrigadeSidebar() {
                     isActive={pathname === item.url}
                     className="w-full"
                   >
-                    <Link href={item.url}>
+                    <Link 
+                      href={item.url} 
+                      prefetch={true}
+                      className="transition-all duration-150"
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>

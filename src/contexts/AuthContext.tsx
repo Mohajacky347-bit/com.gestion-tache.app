@@ -1,19 +1,11 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-
-export type UserRole = 'chef_section' | 'chef_brigade'
-
-export interface User {
-  id: string
-  email: string
-  role: UserRole
-  name: string
-}
+import { AuthUser, AppUserRole } from '@/types/auth'
 
 interface AuthContextType {
-  user: User | null
-  login: (email: string, password: string, role: UserRole) => Promise<boolean>
+  user: AuthUser | null
+  login: (identifier: string, password: string, role: AppUserRole) => Promise<boolean>
   logout: () => void
   isLoading: boolean
   isAuthenticated: boolean
@@ -21,12 +13,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const SESSION_ENDPOINT = '/api/auth/session'
+const LOGIN_ENDPOINT = '/api/auth/login'
+const LOGOUT_ENDPOINT = '/api/auth/logout'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Vérifier si l'utilisateur est déjà connecté (localStorage)
     const savedUser = localStorage.getItem('user')
     if (savedUser) {
       try {
@@ -35,27 +30,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('user')
       }
     }
-    setIsLoading(false)
   }, [])
 
-  const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    setIsLoading(true)
-    
-    try {
-      // Simulation d'une authentification (à remplacer par un vrai appel API)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Pour la démo, on accepte n'importe quel email/mot de passe
-      // En production, ceci devrait être remplacé par un vrai appel API
-      const userData: User = {
-        id: Date.now().toString(),
-        email,
-        role,
-        name: email.split('@')[0]
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const hydrateSession = async () => {
+      try {
+        const response = await fetch(SESSION_ENDPOINT, {
+          method: 'GET',
+          credentials: 'include',
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          setUser(null)
+          localStorage.removeItem('user')
+          setIsLoading(false)
+          return
+        }
+
+        const data = await response.json()
+        if (data?.user) {
+          setUser(data.user)
+          localStorage.setItem('user', JSON.stringify(data.user))
+        } else {
+          setUser(null)
+          localStorage.removeItem('user')
+        }
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Session sync error:', error)
+        }
+      } finally {
+        setIsLoading(false)
       }
-      
-      setUser(userData)
-      localStorage.setItem('user', JSON.stringify(userData))
+    }
+
+    hydrateSession()
+
+    return () => controller.abort()
+  }, [])
+
+  const login = async (identifier: string, password: string, role: AppUserRole): Promise<boolean> => {
+    setIsLoading(true)
+
+    try {
+      const response = await fetch(LOGIN_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password, role })
+      })
+
+      if (!response.ok) {
+        return false
+      }
+
+      const data = await response.json()
+      if (!data?.user) {
+        return false
+      }
+
+      setUser(data.user)
+      localStorage.setItem('user', JSON.stringify(data.user))
       return true
     } catch (error) {
       console.error('Erreur de connexion:', error)
@@ -65,9 +103,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('user')
+  const logout = async () => {
+    try {
+      await fetch(LOGOUT_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include'
+      })
+    } catch (error) {
+      console.error('Erreur déconnexion:', error)
+    } finally {
+      setUser(null)
+      localStorage.removeItem('user')
+    }
   }
 
   const value: AuthContextType = {

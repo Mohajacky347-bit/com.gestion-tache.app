@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BrigadeTask {
   id: string;
@@ -90,6 +91,7 @@ const mapStatusToFilter = (status: BrigadeTask["status"]): string => {
 };
 
 export default function BrigadeTasks() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tasks, setTasks] = useState<BrigadeTask[]>([]);
@@ -101,14 +103,26 @@ export default function BrigadeTasks() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchTasks();
-    fetchAvailableMaterials();
-  }, []);
+    if (user?.brigadeId) {
+      // Charger les matériaux et tâches en parallèle avec cache
+      Promise.all([
+        fetchAvailableMaterials(),
+        fetchTasks(user.brigadeId)
+      ]).catch((error) => {
+        console.error("Erreur lors du chargement initial:", error);
+      });
+    } else {
+      setTasks([]);
+      setIsLoading(false);
+    }
+  }, [user?.brigadeId]);
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (brigadeId: number, useCache = true) => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/taches");
+      const response = await fetch(`/api/taches?brigadeId=${brigadeId}`, {
+        headers: useCache ? {} : { 'Cache-Control': 'no-cache' }
+      });
       if (!response.ok) throw new Error("Erreur lors de la récupération des tâches");
       const data = await response.json();
       setTasks(data);
@@ -126,12 +140,14 @@ export default function BrigadeTasks() {
 
   const fetchAvailableMaterials = async () => {
     try {
+      // Utiliser le cache navigateur par défaut (pas de no-store)
       const response = await fetch("/api/materiels");
       if (!response.ok) throw new Error("Erreur lors de la récupération des matériels");
       const data = await response.json();
       setAvailableMaterials(data.map((m: any) => ({ id: m.id, nom: m.nom, quantite: m.quantite })));
     } catch (error) {
       console.error("Erreur:", error);
+      // Ne pas bloquer l'affichage si les matériaux ne peuvent pas être chargés
     }
   };
 
@@ -208,6 +224,16 @@ export default function BrigadeTasks() {
       });
     }
   };
+
+  if (!user?.brigadeId) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <p className="text-muted-foreground">
+          Aucune brigade n&apos;est associée à votre profil. Contactez votre administrateur.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -359,7 +385,11 @@ export default function BrigadeTasks() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" size="sm" asChild>
-                            <Link href={`/brigade/taches/${task.id}`}>
+                            <Link 
+                              href={`/brigade/taches/${task.id}`} 
+                              prefetch={true}
+                              className="transition-all duration-150"
+                            >
                               Détails
                             </Link>
                           </Button>

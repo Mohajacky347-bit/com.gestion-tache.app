@@ -1,4 +1,6 @@
 import { brigadeModel, BrigadeEntity } from "@/models/brigade.model";
+import { equipeService } from "@/services/equipe.service";
+import { taskService } from "@/services/task.service";
 
 export const brigadeService = {
   async list(): Promise<BrigadeEntity[]> {
@@ -19,6 +21,14 @@ export const brigadeService = {
 
   async delete(id: number): Promise<boolean> {
     return brigadeModel.delete(id);
+  },
+
+  async getEquipesWithMembers(id: number) {
+    return equipeService.getWithMembersByBrigade(id);
+  },
+
+  async getMaterialsForBrigade(id: number) {
+    return taskService.getMaterialsByBrigade(id);
   },
 };
 
