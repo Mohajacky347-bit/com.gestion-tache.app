@@ -1,6 +1,5 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
@@ -12,10 +11,22 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
-        pending: "border-transparent bg-status-pending text-primary-foreground",
-        paused: "border-transparent bg-status-paused text-accent-foreground",
-        progress: "border-transparent bg-status-progress text-primary-foreground",
-        completed: "border-transparent bg-status-completed text-primary-foreground",
+        
+        // Vos variants existants - utilisez vos couleurs status
+        pending: "border-transparent bg-status-pending text-white",
+        paused: "border-transparent bg-status-paused text-white",
+        progress: "border-transparent bg-status-progress text-white",
+        completed: "border-transparent bg-status-completed text-white",
+        
+        // AJOUTEZ CES NOUVEAUX VARIANTS avec les mêmes couleurs que status
+        success: "border-transparent bg-status-completed text-white", // Même que completed
+        warning: "border-transparent bg-status-pending text-white", // Même que pending
+        primary: "border-transparent bg-primary text-primary-foreground",
+        info: "border-transparent bg-status-progress text-white", // Même que progress
+        
+        // Pour Absences
+        teal: "border-transparent bg-teal-500 text-white",
+        orange: "border-transparent bg-orange-500 text-white",
       },
     },
     defaultVariants: {

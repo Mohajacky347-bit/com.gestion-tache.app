@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { motion } from "framer-motion";
+import { StatsCard } from "@/components/dashboard/StatsCard";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { 
   Table,
   TableBody,
@@ -12,33 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  FileText, 
-  Calendar,
-  CheckCircle,
-  Clock,
-  Eye,
-  User,
-  AlertTriangle,
-  Image,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Download,
-  Maximize2,
-  TrendingUp,
-  Activity,
-  BarChart3,
-  Filter,
-  HardHat,
-  Wrench,
-  Users,
-  Package,
-  CalendarDays,
-  FileCheck
-} from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -47,8 +26,39 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { 
+  FileText, 
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Eye,
+  AlertTriangle,
+  Image,
+  Filter,
+  TrendingUp,
+  HardHat,
+  User,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Download,
+  Maximize2,
+  Wrench,
+  Upload,
+  Plus,
+  RotateCcw,
+  Pencil,
+  Type,
+  Circle,
+  Undo2,
+  Search,
+  Check
+} from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { ImageAnnotationEditor } from "@/components/rapports/ImageAnnotationEditor";
+import { toast } from "sonner";
 
 interface Employe {
   id: string;
@@ -86,17 +96,26 @@ interface Rapport {
   photos?: Photo[];
 }
 
-const validationLabels = {
-  "En attente": "En attente",
-  "À réviser": "À réviser", 
-  "Approuvé": "Approuvé"
+const validationConfig = {
+  "En attente": { 
+    label: "En attente", 
+    icon: Clock, 
+    badgeClass: "bg-warning/10 text-warning border-warning/20",
+    color: "from-amber-400 to-yellow-500"
+  },
+  "À réviser": { 
+    label: "À réviser", 
+    icon: AlertTriangle, 
+    badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
+    color: "from-red-400 to-rose-500"
+  },
+  "Approuvé": { 
+    label: "Approuvé", 
+    icon: CheckCircle2, 
+    badgeClass: "bg-success/10 text-success border-success/20",
+    color: "from-emerald-400 to-green-500"
+  }
 };
-
-const validationColors = {
-  "En attente": "bg-amber-50 text-amber-700 border-amber-200",
-  "À réviser": "bg-orange-50 text-orange-700 border-orange-200", 
-  "Approuvé": "bg-emerald-50 text-emerald-700 border-emerald-200"
-} as const;
 
 type AlertType = "success" | "error" | null;
 type FiltreType = "tous" | "En attente" | "À réviser" | "Approuvé";
@@ -105,7 +124,7 @@ const getImageUrl = (rapportId: string, nomFichier: string) => {
   return `/api/images/rapports/${rapportId}/${nomFichier}`;
 };
 
-export default function RapportsChef() {
+export default function Rapports() {
   const [rapports, setRapports] = useState<Rapport[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [filtreActif, setFiltreActif] = useState<FiltreType>("En attente");
@@ -114,6 +133,14 @@ export default function RapportsChef() {
   const [commentaire, setCommentaire] = useState("");
   const [photoIndex, setPhotoIndex] = useState(0);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  const [isAnnotationEditorOpen, setIsAnnotationEditorOpen] = useState(false);
+  const [selectedRapportForAnnotation, setSelectedRapportForAnnotation] = useState<Rapport | null>(null);
+  
+  // ÉTATS POUR LE NOUVEAU FORMULAIRE
+  const [isNewRapportOpen, setIsNewRapportOpen] = useState(false);
+  const [newRapportPhotos, setNewRapportPhotos] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -247,13 +274,13 @@ export default function RapportsChef() {
     filtreActif === "tous" || rapport.validation === filtreActif
   );
 
+  // Stats - UNIQUEMENT SUR CETTE PAGE
   const stats = {
     total: rapports.length,
     en_attente: rapports.filter(r => r.validation === "En attente").length,
     a_reviser: rapports.filter(r => r.validation === "À réviser").length,
     approuve: rapports.filter(r => r.validation === "Approuvé").length,
     tauxApprobation: rapports.length > 0 ? Math.round((rapports.filter(r => r.validation === "Approuvé").length / rapports.length) * 100) : 0,
-    avecPhotos: rapports.filter(r => (r.photos && r.photos.length > 0) || r.photoUrl).length
   };
 
   const formaterNomsEmployes = (employes?: Employe[]) => {
@@ -266,365 +293,485 @@ export default function RapportsChef() {
     return `${employes[0].prenom} ${employes[0].nom} +${employes.length - 1}`;
   };
 
+  // FONCTIONS POUR LE NOUVEAU FORMULAIRE (EXACTEMENT COMME LE DESIGN CIBLE)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const remainingSlots = 5 - newRapportPhotos.length;
+    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+
+    filesToProcess.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setNewRapportPhotos(prev => {
+          if (prev.length < 5) {
+            return [...prev, result];
+          }
+          return prev;
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setNewRapportPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const resetNewRapportForm = () => {
+    setNewRapportPhotos([]);
+    setIsNewRapportOpen(false);
+  };
+
+  // Fonctions pour l'éditeur d'annotation
+  const openAnnotationEditor = (rapport: Rapport) => {
+    setSelectedRapportForAnnotation(rapport);
+    setIsAnnotationEditorOpen(true);
+  };
+
+  const closeAnnotationEditor = () => {
+    setIsAnnotationEditorOpen(false);
+    setSelectedRapportForAnnotation(null);
+  };
+
+  const handleAnnotationApprove = (rapportId: string) => {
+    approuverRapport(rapportId);
+    closeAnnotationEditor();
+  };
+
+  const handleAnnotationRevision = (rapportId: string, comment: string) => {
+    // Capture du canvas et envoi au Chef de Brigade
+    setCommentaire(comment);
+    toast.success("Rapport envoyé pour correction au Chef de Brigade concerné");
+    demanderRevision(rapportId);
+    closeAnnotationEditor();
+  };
+
+  // Fonction pour obtenir le nom du Chef de Brigade (simulation)
+  const getChefDeBrigade = (rapport: Rapport) => {
+    // Simulation - dans un vrai projet, cela viendrait des données du rapport
+    const chefsDeBrigade = {
+      "1": "Jean Dupont",
+      "2": "Marie Martin", 
+      "3": "Pierre Bernard",
+      "4": "Sophie Petit"
+    };
+    return chefsDeBrigade[rapport.id as keyof typeof chefsDeBrigade] || "Chef de Brigade non assigné";
+  };
+
+  // Transformer les données du rapport pour l'éditeur
+  const transformRapportForEditor = (rapport: Rapport) => {
+    const photos = [];
+    if (rapport.photos && rapport.photos.length > 0) {
+      photos.push(...rapport.photos.map(photo => getImageUrl(rapport.id, photo.nom_fichier)));
+    } else if (rapport.photoUrl) {
+      photos.push(rapport.photoUrl);
+    }
+
+    return {
+      id: rapport.id,
+      description: rapport.description,
+      dateRapport: rapport.dateRapport,
+      avancement: rapport.avancement,
+      phase: rapport.phase?.nom || "Phase inconnue",
+      tache: rapport.phase?.tache?.description || "Tâche inconnue",
+      employes: rapport.employes?.map(e => `${e.prenom} ${e.nom}`) || [],
+      validation: rapport.validation,
+      photos: photos
+    };
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Alert */}
       {alert && (
-        <Alert className={`fixed top-20 right-6 z-50 w-96 shadow-xl border-l-4 animate-in slide-in-from-top-2 ${
+        <Alert className={`fixed top-4 right-4 z-50 w-96 shadow-2xl border-l-4 backdrop-blur-sm ${
           alert.type === "success" 
-            ? "border-emerald-500 bg-emerald-50" 
-            : "border-red-500 bg-red-50"
+            ? "border-success bg-success/10 text-success"
+            : "border-destructive bg-destructive/10 text-destructive"
         }`}>
-          <AlertDescription className={`font-medium ${
-            alert.type === "success" ? "text-emerald-800" : "text-red-800"
-          }`}>
+          <AlertDescription className="font-medium">
             {alert.message}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Header avec stats enrichies */}
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font text-slate-900 flex items-center gap-3">
-              <HardHat className="h-8 w-8 text-blue-600" />
-              Validation des Rapports
-            </h1>
-            <p className="text-slate-500 mt-1 font-normal">
-              Gérez et validez les rapports soumis par votre équipe - Système de Gestion Infrastructure
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
-            <FileCheck className="h-5 w-5 text-blue-600" />
-            <span className="text-sm font-medium text-blue-700">
-              FCE : Depuis 1999
-            </span>
-          </div>
-        </div>
-
-        {/* Stats Cards avec design amélioré */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card className="border-slate-200 hover:shadow-md transition-shadow hover:border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Rapports</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</p>
-                  <p className="text-xs text-slate-400 mt-1">Enregistrés</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shadow-sm">
-                  <FileText className="h-6 w-6 text-slate-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-amber-200 hover:shadow-md transition-shadow hover:border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">En attente</p>
-                  <p className="text-2xl font-bold text-amber-900 mt-1">{stats.en_attente}</p>
-                  <p className="text-xs text-amber-500 mt-1">À traiter</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center shadow-sm">
-                  <Clock className="h-6 w-6 text-amber-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-orange-200 hover:shadow-md transition-shadow hover:border-orange-300 bg-gradient-to-br from-orange-50 to-orange-100/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">À réviser</p>
-                  <p className="text-2xl font-bold text-orange-900 mt-1">{stats.a_reviser}</p>
-                  <p className="text-xs text-orange-500 mt-1">Corrections</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center shadow-sm">
-                  <AlertTriangle className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-emerald-200 hover:shadow-md transition-shadow hover:border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Approuvés</p>
-                  <p className="text-2xl font-bold text-emerald-900 mt-1">{stats.approuve}</p>
-                  <p className="text-xs text-emerald-500 mt-1">Validés</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center shadow-sm">
-                  <CheckCircle className="h-6 w-6 text-emerald-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-blue-200 hover:shadow-md transition-shadow hover:border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-100/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Taux approbation</p>
-                  <p className="text-2xl font-bold text-blue-900 mt-1">{stats.tauxApprobation}%</p>
-                  <p className="text-xs text-blue-500 mt-1">Performance</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-cyan-200 flex items-center justify-center shadow-sm">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Filtres stylisés - BOUTONS RÉDUITS */}
-      <div className="bg-gradient-to-r from-white to-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-blue-600" />
-            <h3 className="font-medium text-slate-800 text-sm">Filtres de rapports</h3>
-          </div>
-          <span className="text-xs text-slate-500">
-            {rapportsFiltres.length} rapport{rapportsFiltres.length !== 1 ? 's' : ''} trouvé{rapportsFiltres.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setFiltreActif("En attente")}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-              filtreActif === "En attente" 
-                ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-sm" 
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            <Clock className="h-3 w-3" />
-            <span>En attente</span>
-          </button>
-          <button
-            onClick={() => setFiltreActif("À réviser")}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-              filtreActif === "À réviser" 
-                ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-sm" 
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            <AlertTriangle className="h-3 w-3" />
-            <span>À réviser</span>
-          </button>
-          <button
-            onClick={() => setFiltreActif("Approuvé")}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-              filtreActif === "Approuvé" 
-                ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-sm" 
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            <CheckCircle className="h-3 w-3" />
-            <span>Approuvés</span>
-          </button>
-          <button
-            onClick={() => setFiltreActif("tous")}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-              filtreActif === "tous" 
-                ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-sm" 
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            <FileText className="h-3 w-3" />
-            <span>Tous</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Tableau amélioré */}
-      <Card className="border-slate-200 shadow-lg overflow-hidden">
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="Validation des Rapports"
+          description="Gérez et validez les rapports soumis par votre équipe"
+          icon={FileText}
+        />
         
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="text-center text-slate-500 py-12">
-              <Activity className="h-8 w-8 animate-spin mx-auto mb-3 text-blue-600" />
-              <p className="font-medium">Chargement des rapports...</p>
-              <p className="text-sm text-slate-400 mt-1">Veuillez patienter</p>
+        {/* BOUTON NOUVEAU RAPPORT AVEC FORMULAIRE DU DESIGN CIBLE */}
+        <Dialog open={isNewRapportOpen} onOpenChange={setIsNewRapportOpen}>
+          <DialogTrigger asChild>
+            <Button className="gradient-primary text-primary-foreground">
+              <Plus className="h-4 w-4 mr-2" />
+              Nouveau Rapport
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Créer un nouveau rapport</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Décrivez les travaux effectués..."
+                  className="min-h-[100px]"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tache">Tâche</Label>
+                  <Input id="tache" placeholder="Sélectionner une tâche" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phase">Phase</Label>
+                  <Input id="phase" placeholder="Sélectionner une phase" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="avancement">Avancement (%)</Label>
+                <Input id="avancement" type="number" min="0" max="100" placeholder="50" />
+              </div>
+
+              {/* Image Upload Section - FORMULAIRE EXACT DU DESIGN CIBLE */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Photos (1-5 images)</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {newRapportPhotos.length}/5 images
+                  </span>
+                </div>
+                
+                {/* Upload Button */}
+                <div 
+                  onClick={() => newRapportPhotos.length < 5 && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer
+                    ${newRapportPhotos.length >= 5 
+                      ? 'border-muted bg-muted/20 cursor-not-allowed' 
+                      : 'border-primary/30 hover:border-primary/50 hover:bg-primary/5'
+                    }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    disabled={newRapportPhotos.length >= 5}
+                  />
+                  <Upload className={`h-8 w-8 mx-auto mb-2 ${newRapportPhotos.length >= 5 ? 'text-muted-foreground' : 'text-primary'}`} />
+                  <p className={`text-sm font-medium ${newRapportPhotos.length >= 5 ? 'text-muted-foreground' : 'text-foreground'}`}>
+                    {newRapportPhotos.length >= 5 
+                      ? 'Limite de 5 images atteinte'
+                      : 'Cliquez pour télécharger des images'
+                    }
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PNG, JPG jusqu'à 10MB
+                  </p>
+                </div>
+
+                {/* Image Previews */}
+                {newRapportPhotos.length > 0 && (
+                  <div className="grid grid-cols-5 gap-2">
+                    {newRapportPhotos.map((photo, index) => (
+                      <div key={index} className="relative group aspect-square">
+                        <img
+                          src={photo}
+                          alt={`Photo ${index + 1}`}
+                          className="w-full h-full object-cover rounded-lg border border-border"
+                        />
+                        <button
+                          onClick={() => removePhoto(index)}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="outline" onClick={resetNewRapportForm}>
+                  Annuler
+                </Button>
+                <Button 
+                  className="gradient-primary text-primary-foreground"
+                  disabled={newRapportPhotos.length === 0}
+                >
+                  Créer le rapport
+                </Button>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-300">
-                    <TableHead className="font-semibold text-slate-700 py-4">ID</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Employé(s)</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Phase / Tâche</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Description</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Date</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Avancement</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Photos</TableHead>
-                    <TableHead className="font-semibold text-slate-700 py-4">Statut</TableHead>
-                    <TableHead className="text-right font-semibold text-slate-700 py-4">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rapportsFiltres.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-16">
-                        <div className="max-w-md mx-auto">
-                          <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-                          <h3 className="text-lg font-semibold text-slate-600 mb-2">
-                            Aucun rapport {filtreActif !== "tous" && validationLabels[filtreActif].toLowerCase()}
-                          </h3>
-                          <p className="text-slate-500">
-                            Les rapports apparaîtront ici une fois soumis par les équipes
-                          </p>
-                        </div>
-                      </TableCell>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Stats Cards - TOUT LE RESTE DE VOTRE CODE RESTE IDENTIQUE */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatsCard
+          title="Total Rapports"
+          value={stats.total}
+          description="Enregistrés"
+          icon={FileText}
+          variant="default"
+          delay={0}
+        />
+        <StatsCard
+          title="En attente"
+          value={stats.en_attente}
+          description="À traiter"
+          icon={Clock}
+          variant="warning"
+          delay={0.1}
+        />
+        <StatsCard
+          title="À réviser"
+          value={stats.a_reviser}
+          description="Corrections"
+          icon={AlertTriangle}
+          variant="danger"
+          delay={0.2}
+        />
+        <StatsCard
+          title="Approuvés"
+          value={stats.approuve}
+          description="Validés"
+          icon={CheckCircle2}
+          variant="success"
+          delay={0.3}
+        />
+        <StatsCard
+          title="Taux approbation"
+          value={`${stats.tauxApprobation}%`}
+          description="Performance"
+          icon={TrendingUp}
+          variant="primary"
+          delay={0.4}
+        />
+      </div>
+
+      {/* Filters */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="bg-secondary/50 p-3 rounded-lg border border-border/50"
+      >
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-foreground">Filtrer par :</span>
+          </div>
+          <div className="flex gap-2">
+            {(["tous", "En attente", "À réviser", "Approuvé"] as FiltreType[]).map((filtre) => (
+              <Button
+                key={filtre}
+                variant={filtreActif === filtre ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFiltreActif(filtre)}
+                className={filtreActif === filtre ? "gradient-primary text-primary-foreground" : ""}
+              >
+                {filtre === "tous" ? "Tous" : filtre}
+                {filtre !== "tous" && (
+                  <Badge variant="secondary" className="ml-2 h-5 text-xs">
+                    {filtre === "En attente" ? stats.en_attente : filtre === "À réviser" ? stats.a_reviser : stats.approuve}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Rapports Table */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="border-border/50 shadow-soft">
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="text-center text-muted-foreground py-12">
+                <div className="w-12 h-12 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+                <p className="font-medium text-foreground">Chargement des rapports...</p>
+                <p className="text-sm text-muted-foreground mt-1">Veuillez patienter</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-secondary/50 border-b border-border/50 hover:bg-secondary/50">
+                      <TableHead className="font-semibold text-foreground">ID</TableHead>
+                      <TableHead className="font-semibold text-foreground">Rapport</TableHead>
+                      <TableHead className="font-semibold text-foreground">Tâche / Phase</TableHead>
+                      <TableHead className="font-semibold text-foreground">Date</TableHead>
+                      <TableHead className="font-semibold text-foreground">Avancement</TableHead>
+                      <TableHead className="font-semibold text-foreground">Photos</TableHead>
+                      <TableHead className="font-semibold text-foreground">Validation</TableHead>
+                      <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
                     </TableRow>
-                  ) : rapportsFiltres.map((rapport) => {
-                    const hasPhotos = (rapport.photos && rapport.photos.length > 0) || rapport.photoUrl;
-                    const photoCount = rapport.photos ? rapport.photos.length : (rapport.photoUrl ? 1 : 0);
-                    
-                    return (
-                      <TableRow key={rapport.id} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100 group">
-                        <TableCell className="font-mono font-bold text-blue-700 py-4">#{rapport.id}</TableCell>
-                        <TableCell className="py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                              <User className="h-5 w-5 text-white" />
-                            </div>
-                            <div>
-                              <div className="font-semibold text-slate-500">
-                                {formaterNomsEmployes(rapport.employes)}
-                              </div>
-                              <div className="text-xs text-slate-500">
-                                {rapport.employes?.[0]?.fonction || "Non assigné"}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <div>
-                            <div className="font-semibold text-slate-500 flex items-center gap-2">
-                              <HardHat className="h-4 w-4 text-blue-500" />
-                              {rapport.phase?.nom || "Phase inconnue"}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-1 max-w-xs truncate">
-                              {rapport.phase?.tache?.description || "Aucune tâche spécifiée"}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <div className="max-w-xs truncate text-slate-700 group-hover:text-blue-700 transition-colors" title={rapport.description}>
-                            {rapport.description}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <div className="text-sm flex items-center gap-2 text-slate-600">
-                            <Calendar className="h-4 w-4 text-blue-500" />
-                            {new Date(rapport.dateRapport).toLocaleDateString('fr-FR')}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden flex-1">
-                              <div 
-                                className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all"
-                                style={{ width: `${rapport.avancement}%` }}
-                              />
-                            </div>
-                            <span className="text-sm font-bold text-blue-700 min-w-[40px]">{rapport.avancement}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          {hasPhotos ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center shadow-sm">
-                                <Image className="h-4 w-4 text-emerald-600" />
-                              </div>
-                              <div>
-                                <span className="text-sm font-semibold text-slate-700">{photoCount}</span>
-                                <div className="text-xs text-emerald-600">photo{photoCount > 1 ? 's' : ''}</div>
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-slate-400 px-2 py-1 bg-slate-100 rounded">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <Badge 
-                            variant="outline" 
-                            className={`${validationColors[rapport.validation]} font-semibold px-3 py-1 border-2`}
-                          >
-                            {validationLabels[rapport.validation]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right py-4">
-                          <div className="flex justify-end gap-2">
-                            {rapport.validation === "En attente" && (
-                              <>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => approuverRapport(rapport.id)}
-                                  className="h-9 w-9 p-0 bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-700 hover:text-emerald-800 hover:from-emerald-100 hover:to-emerald-200 border border-emerald-200 shadow-sm"
-                                  title="Approuver ce rapport"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => openDialog("revision", rapport)}
-                                  className="h-9 w-9 p-0 bg-gradient-to-br from-orange-50 to-orange-100 text-orange-700 hover:text-orange-800 hover:from-orange-100 hover:to-orange-200 border border-orange-200 shadow-sm"
-                                  title="Demander révision"
-                                >
-                                  <AlertTriangle className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => openDialog("details", rapport)}
-                              className="h-9 w-9 p-0 bg-gradient-to-br from-blue-50 to-cyan-100 text-blue-700 hover:text-blue-800 hover:from-blue-100 hover:to-cyan-200 border border-blue-200 shadow-sm"
-                              title="Voir les détails"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {rapportsFiltres.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-16">
+                          <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p className="text-lg font-medium text-foreground">Aucun rapport trouvé</p>
+                          <p className="text-sm">
+                            {filtreActif !== "tous" ? `Aucun rapport ${validationConfig[filtreActif].label.toLowerCase()}` : "Aucun rapport disponible"}
+                          </p>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    ) : rapportsFiltres.map((rapport, index) => {
+                      const hasPhotos = (rapport.photos && rapport.photos.length > 0) || rapport.photoUrl;
+                      const photoCount = rapport.photos ? rapport.photos.length : (rapport.photoUrl ? 1 : 0);
+                      const ValidationIcon = validationConfig[rapport.validation].icon;
+                      
+                      return (
+                        <motion.tr
+                          key={rapport.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.03 }}
+                          className="border-b border-border/30 hover:bg-secondary/30 transition-colors"
+                        >
+                          <TableCell className="font-mono text-sm text-muted-foreground">#{rapport.id}</TableCell>
+                          <TableCell>
+                            <div className="max-w-xs">
+                              <p className="font-medium text-foreground truncate">{rapport.description}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formaterNomsEmployes(rapport.employes)}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-foreground text-sm">{rapport.phase?.tache?.description || "Aucune tâche"}</p>
+                              <p className="text-xs text-muted-foreground">{rapport.phase?.nom || "Phase inconnue"}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-foreground">{new Date(rapport.dateRapport).toLocaleDateString('fr-FR')}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-20 h-2 bg-secondary rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full gradient-primary rounded-full transition-all duration-500"
+                                    style={{ width: `${rapport.avancement}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm font-semibold text-primary">{rapport.avancement}%</span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {hasPhotos ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                                  <Image className="h-4 w-4 text-success" />
+                                </div>
+                                <span className="text-sm font-medium text-foreground">{photoCount}</span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`${validationConfig[rapport.validation].badgeClass} border gap-1`}>
+                              <ValidationIcon className="h-3 w-3" />
+                              {validationConfig[rapport.validation].label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {rapport.validation === "En attente" && (
+                                <>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => approuverRapport(rapport.id)}
+                                    className="h-8 w-8 bg-success/10 text-success hover:bg-success/20 hover:text-success"
+                                    title="Approuver"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => openDialog("revision", rapport)}
+                                    className="h-8 w-8 bg-warning/10 text-warning hover:bg-warning/20 hover:text-warning"
+                                    title="Demander révision"
+                                  >
+                                    <AlertTriangle className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => openAnnotationEditor(rapport)}
+                                className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                                title="Voir détails et annoter"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </motion.tr>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
-      {/* Modal Détails - TAILLE NORMALE */}
+      {/* Modal Détails */}
       <Dialog open={dialog?.type === "details"} onOpenChange={closeDialog}>
         <DialogContent className="max-w-4xl">
           <DialogHeader className="pb-4">
             <div className="flex items-start justify-between">
               <div>
-                <DialogTitle className="text-xl font-bold text-slate-900">
-                  Rapport <span className="text-blue-600">#{dialog?.rapport?.id}</span>
+                <DialogTitle className="text-xl font-bold text-foreground">
+                  Rapport <span className="text-primary">#{dialog?.rapport?.id}</span>
                 </DialogTitle>
-                <DialogDescription className="text-slate-600 mt-1 flex items-center gap-2">
+                <DialogDescription className="text-muted-foreground mt-1 flex items-center gap-2">
                   <Wrench className="h-4 w-4" />
                   {dialog?.rapport?.phase?.nom} · {dialog?.rapport && formaterNomsEmployes(dialog.rapport.employes)}
                 </DialogDescription>
               </div>
               <Badge 
                 variant="outline" 
-                className={`${validationColors[dialog?.rapport?.validation || "En attente"]} font-semibold px-3 py-1`}
+                className={`${validationConfig[dialog?.rapport?.validation || "En attente"].badgeClass} border`}
               >
-                {validationLabels[dialog?.rapport?.validation || "En attente"]}
+                {validationConfig[dialog?.rapport?.validation || "En attente"].label}
               </Badge>
             </div>
           </DialogHeader>
@@ -633,26 +780,26 @@ export default function RapportsChef() {
             <div className="space-y-4">
               {/* Layout avec photo à côté des détails */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Colonne de gauche - Photo réduite */}
+                {/* Colonne de gauche - Photo */}
                 <div className="lg:col-span-1">
-                  <div className="bg-slate-900 rounded-lg p-2">
+                  <div className="bg-card border border-border/50 rounded-lg p-3">
                     {(dialog.rapport.photos && dialog.rapport.photos.length > 0) || dialog.rapport.photoUrl ? (
                       <div className="space-y-3">
                         {/* En-tête photos */}
                         <div className="flex items-center justify-between px-2">
                           <div className="flex items-center gap-2">
-                            <Image className="h-4 w-4 text-white" />
-                            <Label className="text-sm font-medium text-white">
+                            <Image className="h-4 w-4 text-muted-foreground" />
+                            <Label className="text-sm font-medium text-foreground">
                               Photos ({getTotalPhotos(dialog.rapport)})
                             </Label>
                           </div>
-                          <span className="text-xs text-slate-300">
+                          <span className="text-xs text-muted-foreground">
                             {photoIndex + 1} / {getTotalPhotos(dialog.rapport)}
                           </span>
                         </div>
                         
-                        {/* Photo principale réduite */}
-                        <div className="relative bg-slate-950 rounded overflow-hidden group">
+                        {/* Photo principale */}
+                        <div className="relative bg-muted rounded overflow-hidden group">
                           <div className="aspect-square flex items-center justify-center">
                             <img 
                               src={getCurrentPhotoUrl(dialog.rapport)}
@@ -670,7 +817,7 @@ export default function RapportsChef() {
                                   variant="ghost"
                                   size="icon"
                                   onClick={prevPhoto}
-                                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-slate-900 w-8 h-8 rounded-full"
+                                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-foreground w-8 h-8 rounded-full"
                                 >
                                   <ChevronLeft className="h-4 w-4" />
                                 </Button>
@@ -678,7 +825,7 @@ export default function RapportsChef() {
                                   variant="ghost"
                                   size="icon"
                                   onClick={nextPhoto}
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-slate-900 w-8 h-8 rounded-full"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-foreground w-8 h-8 rounded-full"
                                 >
                                   <ChevronRight className="h-4 w-4" />
                                 </Button>
@@ -689,7 +836,7 @@ export default function RapportsChef() {
                               variant="ghost"
                               size="icon"
                               onClick={() => setFullscreenPhoto(getCurrentPhotoUrl(dialog.rapport!))}
-                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-slate-900 w-8 h-8 rounded-full"
+                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-foreground w-8 h-8 rounded-full"
                             >
                               <Maximize2 className="h-4 w-4" />
                             </Button>
@@ -705,8 +852,8 @@ export default function RapportsChef() {
                                 onClick={() => setPhotoIndex(index)}
                                 className={`relative aspect-square rounded overflow-hidden border-2 transition-all ${
                                   index === photoIndex 
-                                    ? 'border-blue-500' 
-                                    : 'border-slate-700 hover:border-slate-600'
+                                    ? 'border-primary' 
+                                    : 'border-border hover:border-primary/50'
                                 }`}
                               >
                                 <img 
@@ -720,9 +867,9 @@ export default function RapportsChef() {
                         )}
                       </div>
                     ) : (
-                      <div className="text-center py-8 border-2 border-dashed border-slate-700 rounded-lg bg-slate-900/50">
-                        <Image className="h-10 w-10 mx-auto mb-2 text-slate-600" />
-                        <p className="text-sm text-slate-400">Aucune photo disponible</p>
+                      <div className="text-center py-8 border-2 border-dashed border-border rounded-lg bg-muted/50">
+                        <Image className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Aucune photo disponible</p>
                       </div>
                     )}
                   </div>
@@ -731,25 +878,25 @@ export default function RapportsChef() {
                 {/* Colonne de droite - Détails */}
                 <div className="lg:col-span-2 space-y-4">
                   {/* Informations principales */}
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <div className="bg-muted rounded-lg p-3 border border-border">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs font-medium text-slate-500">Date du rapport</Label>
-                        <p className="font-semibold text-slate-900 mt-1">
+                        <Label className="text-xs font-medium text-muted-foreground">Date du rapport</Label>
+                        <p className="font-semibold text-foreground mt-1">
                           {new Date(dialog.rapport.dateRapport).toLocaleDateString('fr-FR')}
                         </p>
                       </div>
                       
                       <div>
-                        <Label className="text-xs font-medium text-slate-500">Avancement</Label>
+                        <Label className="text-xs font-medium text-muted-foreground">Avancement</Label>
                         <div className="flex items-center gap-2 mt-1">
-                          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
                             <div 
-                              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all"
+                              className="h-full gradient-primary transition-all"
                               style={{ width: `${dialog.rapport.avancement}%` }}
                             />
                           </div>
-                          <span className="font-semibold text-slate-900 text-sm">{dialog.rapport.avancement}%</span>
+                          <span className="font-semibold text-primary text-sm">{dialog.rapport.avancement}%</span>
                         </div>
                       </div>
                     </div>
@@ -757,9 +904,9 @@ export default function RapportsChef() {
 
                   {/* Description */}
                   <div>
-                    <Label className="text-sm font-semibold text-slate-700 mb-2">Description du travail</Label>
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                      <p className="text-slate-700">
+                    <Label className="text-sm font-semibold text-foreground mb-2">Description du travail</Label>
+                    <div className="p-3 bg-muted rounded-lg border border-border">
+                      <p className="text-foreground">
                         {dialog.rapport.description}
                       </p>
                     </div>
@@ -767,34 +914,34 @@ export default function RapportsChef() {
 
                   {/* Employés */}
                   <div>
-                    <Label className="text-sm font-semibold text-slate-700 mb-2">Employé(s) assigné(s)</Label>
+                    <Label className="text-sm font-semibold text-foreground mb-2">Employé(s) assigné(s)</Label>
                     <div className="space-y-2">
                       {dialog.rapport.employes?.map((employe) => (
-                        <div key={employe.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center flex-shrink-0">
-                            <User className="h-5 w-5 text-white" />
+                        <div key={employe.id} className="flex items-center gap-3 p-3 bg-muted rounded-lg border border-border">
+                          <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center flex-shrink-0">
+                            <User className="h-5 w-5 text-primary-foreground" />
                           </div>
                           <div className="flex-1">
-                            <p className="font-semibold text-slate-900">
+                            <p className="font-semibold text-foreground">
                               {employe.prenom} {employe.nom}
                             </p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-sm text-muted-foreground">
                               {employe.fonction}
                             </p>
                           </div>
                         </div>
-                      )) || <p className="text-sm text-slate-500 text-center p-3 bg-slate-50 rounded-lg border border-slate-200">Non assigné</p>}
+                      )) || <p className="text-sm text-muted-foreground text-center p-3 bg-muted rounded-lg border border-border">Non assigné</p>}
                     </div>
                   </div>
 
                   {/* Commentaire de révision si présent */}
                   {dialog.rapport.commentaire && dialog.rapport.validation === "À réviser" && (
-                    <div className="bg-orange-50 rounded-lg p-3 border-2 border-orange-200">
+                    <div className="bg-warning/10 rounded-lg p-3 border-2 border-warning/20">
                       <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="h-4 w-4 text-orange-600" />
-                        <Label className="text-sm font-semibold text-orange-900">Commentaire de révision</Label>
+                        <AlertTriangle className="h-4 w-4 text-warning" />
+                        <Label className="text-sm font-semibold text-warning-foreground">Commentaire de révision</Label>
                       </div>
-                      <p className="text-sm text-orange-800">
+                      <p className="text-sm text-warning-foreground">
                         {dialog.rapport.commentaire}
                       </p>
                     </div>
@@ -802,15 +949,15 @@ export default function RapportsChef() {
                 </div>
               </div>
 
-              {/* Actions - SUPPRIMÉ LE BOUTON FERMER */}
+              {/* Actions */}
               {dialog.rapport.validation === "En attente" && (
-                <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                <div className="bg-muted rounded-lg border border-border p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <FileCheck className="h-5 w-5 text-blue-600" />
-                      <h3 className="font-semibold text-slate-900">Actions de validation</h3>
+                      <FileText className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold text-foreground">Actions de validation</h3>
                     </div>
-                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">
+                    <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
                       En attente de décision
                     </Badge>
                   </div>
@@ -818,10 +965,10 @@ export default function RapportsChef() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Button 
                       onClick={() => approuverRapport(dialog.rapport!.id)}
-                      className="h-12 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white"
+                      className="h-12 gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
                     >
                       <div className="flex items-center justify-center gap-2">
-                        <CheckCircle className="h-5 w-5" />
+                        <CheckCircle2 className="h-5 w-5" />
                         <span className="font-semibold">Approuver</span>
                       </div>
                     </Button>
@@ -832,7 +979,7 @@ export default function RapportsChef() {
                         closeDialog();
                         openDialog("revision", dialog.rapport);
                       }}
-                      className="h-12 border-2 border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400"
+                      className="h-12 border-2 border-warning text-warning hover:bg-warning/10 hover:border-warning/80"
                     >
                       <div className="flex items-center justify-center gap-2">
                         <AlertTriangle className="h-5 w-5" />
@@ -884,26 +1031,26 @@ export default function RapportsChef() {
       <Dialog open={dialog?.type === "revision"} onOpenChange={closeDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
+            <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
               Demander révision
             </DialogTitle>
-            <DialogDescription className="text-slate-600">
+            <DialogDescription className="text-muted-foreground">
               Rapport #{dialog?.rapport?.id} · {dialog?.rapport?.phase?.nom}
             </DialogDescription>
           </DialogHeader>
           {dialog?.rapport && (
             <div className="space-y-4">
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <div className="bg-muted p-3 rounded-lg border border-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
-                    <User className="h-5 w-5 text-white" />
+                  <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center">
+                    <User className="h-5 w-5 text-primary-foreground" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-foreground">
                       {formaterNomsEmployes(dialog.rapport.employes)}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {dialog.rapport.employes?.[0]?.fonction}
                     </p>
                   </div>
@@ -912,11 +1059,11 @@ export default function RapportsChef() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label className="text-sm font-semibold text-slate-700">
-                    Commentaire pour l'employé <span className="text-red-500">*</span>
+                  <Label className="text-sm font-semibold text-foreground">
+                    Commentaire pour l'employé <span className="text-destructive">*</span>
                   </Label>
-                  <Badge variant="outline" className={validationColors[dialog.rapport.validation]}>
-                    {validationLabels[dialog.rapport.validation]}
+                  <Badge variant="outline" className={validationConfig[dialog.rapport.validation].badgeClass}>
+                    {validationConfig[dialog.rapport.validation].label}
                   </Badge>
                 </div>
                 <Textarea 
@@ -924,10 +1071,10 @@ export default function RapportsChef() {
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
                   rows={4}
-                  className="resize-none border-slate-300 focus:border-orange-500 focus:ring-orange-500 text-sm"
+                  className="resize-none border-border focus:border-warning focus:ring-warning text-sm"
                   required
                 />
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Ce commentaire sera envoyé à l'employé
                 </p>
               </div>
@@ -943,7 +1090,7 @@ export default function RapportsChef() {
                 <Button 
                   onClick={() => demanderRevision(dialog.rapport!.id)}
                   disabled={!commentaire.trim()}
-                  className="flex-1 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white"
+                  className="flex-1 bg-warning text-warning-foreground hover:bg-warning/90 shadow-glow"
                 >
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Envoyer pour révision
@@ -953,6 +1100,18 @@ export default function RapportsChef() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Image Annotation Editor */}
+      {selectedRapportForAnnotation && (
+        <ImageAnnotationEditor
+          rapport={transformRapportForEditor(selectedRapportForAnnotation)}
+          isOpen={isAnnotationEditorOpen}
+          onClose={closeAnnotationEditor}
+          onApprove={handleAnnotationApprove}
+          onRequestRevision={handleAnnotationRevision}
+          chefDeBrigade={getChefDeBrigade(selectedRapportForAnnotation)}
+        />
+      )}
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { materialService } from "@/services/material.service";
+import { freshResponse } from "@/lib/api-helpers";
 
 export const materialController = {
   async list(_req: NextRequest) {
     try {
       const data = await materialService.list();
-      return Response.json(data);
+      // Cache de 1 minute pour les matériels (changent plus fréquemment)
+      return freshResponse(data, 60);
     } catch (error) {
       return Response.json({ error: "Erreur lors de la récupération des matériels" }, { status: 500 });
     }

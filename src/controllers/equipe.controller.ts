@@ -1,22 +1,23 @@
 import { NextRequest } from "next/server";
 import { equipeService } from "@/services/equipe.service";
-import { equipeModel } from "@/models/equipe.model"; // AJOUTEZ CET IMPORT
+import { equipeModel } from "@/models/equipe.model";
+import { cachedResponse } from "@/lib/api-helpers";
 
 export const equipeController = {
-  async list(req: NextRequest) { // MODIFIEZ pour accepter la requête
+  async list(req: NextRequest) {
     try {
       const { searchParams } = new URL(req.url);
       const brigadeId = searchParams.get('brigade');
       
       let data;
       if (brigadeId) {
-        // Utilisez le modèle directement pour le filtrage par brigade
         data = await equipeModel.findByBrigade(parseInt(brigadeId));
       } else {
         data = await equipeService.list();
       }
       
-      return Response.json(data);
+      // Cache de 2 minutes pour les équipes
+      return cachedResponse(data, 120);
     } catch (error) {
       console.error("Erreur lors de la récupération des équipes:", error);
       return Response.json(

@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { brigadeService } from "@/services/brigade.service";
+import { cachedResponse } from "@/lib/api-helpers";
 
 export const brigadeController = {
   async list(_req: NextRequest) {
     try {
       const data = await brigadeService.list();
-      return Response.json(data);
+      // Cache de 5 minutes pour les brigades (données qui changent rarement)
+      return cachedResponse(data, 300);
     } catch (error) {
       console.error("Erreur lors de la récupération des brigades:", error);
       return Response.json(

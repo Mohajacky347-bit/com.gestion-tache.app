@@ -1,4 +1,7 @@
+'use client'
+
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,17 +58,29 @@ interface Employee {
   typeAbsence?: "conge" | "maladie";
 }
 
-const disponibiliteLabels = {
-  disponible: "Disponible",
-  affecte: "Affecté",
-  absent: "Absent"
+const disponibiliteConfig = {
+  disponible: { 
+    label: "Disponible", 
+    variant: "success" as const,
+    color: "from-emerald-400 to-green-500",
+    badgeClass: "bg-success/10 text-success border-success/20",
+    iconClass: "text-success"
+  },
+  affecte: { 
+    label: "Affecté", 
+    variant: "primary" as const,
+    color: "from-blue-400 to-cyan-500",
+    badgeClass: "bg-primary/10 text-primary border-primary/20",
+    iconClass: "text-primary"
+  },
+  absent: { 
+    label: "Absent", 
+    variant: "destructive" as const,
+    color: "from-red-400 to-rose-500",
+    badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
+    iconClass: "text-destructive"
+  }
 };
-
-const disponibiliteVariants = {
-  disponible: "completed",
-  affecte: "progress",
-  absent: "paused"
-} as const;
 
 type AlertType = "success" | "error" | null;
 type DialogType = "add" | "edit" | "delete" | "details" | null;
@@ -366,211 +381,199 @@ export default function Employes() {
 
   const getAvatarGradient = (id: string) => {
     const gradients = [
-      "from-blue-500 to-cyan-400",
-      "from-purple-500 to-pink-400",
-      "from-emerald-500 to-teal-400",
-      "from-orange-500 to-amber-400",
-      "from-rose-500 to-red-400",
-      "from-indigo-500 to-violet-400",
+      "from-blue-500 to-cyan-500",
+      "from-violet-500 to-purple-500",
+      "from-emerald-500 to-teal-500",
+      "from-orange-500 to-amber-500",
+      "from-pink-500 to-rose-500",
+      "from-indigo-500 to-blue-500",
     ];
-    const index = parseInt(id) % gradients.length;
+    const index = id.charCodeAt(id.length - 1) % gradients.length;
     return gradients[index];
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       {/* Alerte */}
       {alert && (
         <Alert className={`fixed top-4 right-4 z-50 w-96 shadow-2xl border-l-4 backdrop-blur-sm ${alert.type === "success"
-            ? "border-emerald-500 bg-emerald-50/95"
-            : "border-red-500 bg-red-50/95"
+            ? "border-emerald-500 bg-emerald-50/95 text-emerald-800"
+            : "border-red-500 bg-red-50/95 text-red-800"
           }`}>
-          <AlertDescription className={`font-medium ${alert.type === "success" ? "text-emerald-800" : "text-red-800"
-            }`}>
+          <AlertDescription className="font-medium">
             {alert.message}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* En-tête spectaculaire */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-8">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-        
-        <div className="relative flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">
-              Gestion des Employés
-            </h1>
-            <p className="text-blue-200/80 text-lg">
-              {filteredEmployees.length} employé{filteredEmployees.length > 1 ? 's' : ''} dans le service infrastructure
-            </p>
-          </div>
-          <Button
-            size="lg"
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20 shadow-xl transition-all duration-300 hover:scale-105"
-            onClick={() => openDialog("add")}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Ajouter un employé
-          </Button>
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
+              <Users className="h-5 w-5 text-primary-foreground" />
+            </div>
+            Gestion des Employés
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {filteredEmployees.length} employé{filteredEmployees.length > 1 ? 's' : ''} dans le service infrastructure
+          </p>
         </div>
+        <Button 
+          className="gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+          onClick={() => openDialog("add")}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nouvel employé
+        </Button>
       </div>
 
-      {/* Barre de recherche élégante */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-2xl blur-xl" />
-        <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-lg p-2">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <Input
-              placeholder="Rechercher par nom, prénom, fonction ou spécialité..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-12 pr-4 py-6 text-lg border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"
-            />
-          </div>
-        </div>
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Rechercher par nom, fonction, spécialité..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 border-border/50 focus:border-primary"
+        />
       </div>
 
-      {/* Grille d'employés */}
+      {/* Employee Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {[...Array(8)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-6">
                 <div className="flex flex-col items-center">
-                  <div className="w-20 h-20 rounded-full bg-gray-200 mb-4" />
-                  <div className="h-5 bg-gray-200 rounded w-32 mb-2" />
-                  <div className="h-4 bg-gray-200 rounded w-24" />
+                  <div className="w-20 h-20 rounded-full bg-secondary mb-4" />
+                  <div className="h-5 bg-secondary rounded w-32 mb-2" />
+                  <div className="h-4 bg-secondary rounded w-24" />
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : filteredEmployees.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-            <Users className="h-12 w-12 text-gray-400" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">Aucun employé trouvé</h3>
-          <p className="text-gray-500">Essayez de modifier votre recherche ou ajoutez un nouvel employé</p>
+        <div className="text-center py-16 text-muted-foreground">
+          <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
+          <h3 className="text-xl font-semibold text-foreground mb-2">Aucun employé trouvé</h3>
+          <p>Essayez de modifier votre recherche ou ajoutez un nouvel employé</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredEmployees.map((employee, index) => (
-            <Card 
-              key={employee.id} 
-              className="group relative overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 bg-white"
-              style={{ animationDelay: `${index * 50}ms` }}
+            <motion.div
+              key={employee.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
             >
-              {/* Bande de disponibilité */}
-              <div className={`absolute top-0 left-0 right-0 h-1 ${
-                employee.disponibilite === 'disponible' 
-                  ? 'bg-gradient-to-r from-emerald-400 to-green-500' 
-                  : employee.disponibilite === 'affecte' 
-                  ? 'bg-gradient-to-r from-amber-400 to-orange-500'
-                  : 'bg-gradient-to-r from-red-400 to-rose-500'
-              }`} />
-              
-              {/* Effet de hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-purple-500/0 group-hover:from-blue-500/5 group-hover:to-purple-500/5 transition-all duration-500" />
-              
-              <CardContent className="p-6 relative">
-                {/* Avatar et infos principales */}
-                <div className="flex flex-col items-center text-center mb-4">
-                  <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getAvatarGradient(employee.id)} flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    {getInitials(employee.prenom, employee.nom)}
+              <Card className="group relative overflow-hidden border-border/50 shadow-soft hover:shadow-lg transition-all duration-300 hover:-translate-y-1 bg-card">
+                {/* Status bar */}
+                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${disponibiliteConfig[employee.disponibilite].color}`} />
+                
+                {/* Hover effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-accent/0 group-hover:from-primary/5 group-hover:to-accent/5 transition-all duration-500" />
+                
+                <CardContent className="p-6 relative">
+                  {/* Avatar and main info */}
+                  <div className="flex flex-col items-center text-center mb-4">
+                    <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getAvatarGradient(employee.id)} flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                      {getInitials(employee.prenom, employee.nom)}
+                    </div>
+                    
+                    <h3 className="text-lg font-bold text-foreground mb-1">
+                      {employee.prenom} {employee.nom}
+                    </h3>
+                    
+                    <Badge 
+                      variant="outline" 
+                      className={`${disponibiliteConfig[employee.disponibilite].badgeClass} border mb-3`}
+                    >
+                      {disponibiliteConfig[employee.disponibilite].label}
+                    </Badge>
                   </div>
-                  
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    {employee.prenom} {employee.nom}
-                  </h3>
-                  
-                  <Badge variant={disponibiliteVariants[employee.disponibilite]} className="mb-3">
-                    {disponibiliteLabels[employee.disponibilite]}
-                  </Badge>
-                </div>
 
-                {/* Détails */}
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-4 w-4 text-blue-500" />
-                    </div>
-                    <span className="truncate">{employee.fonction}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                      <Phone className="h-4 w-4 text-emerald-500" />
-                    </div>
-                    <span>{employee.contact}</span>
-                  </div>
-                  
-                  {employee.specialite && (
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                        <Star className="h-4 w-4 text-amber-500" />
+                  {/* Details */}
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Briefcase className={`h-4 w-4 ${disponibiliteConfig[employee.disponibilite].iconClass}`} />
                       </div>
-                      <span className="truncate">{employee.specialite}</span>
+                      <span className="truncate text-foreground">{employee.fonction}</span>
                     </div>
-                  )}
-                  
-                  {employee.tacheActuelle && (
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                        <MapPin className="h-4 w-4 text-purple-500" />
+                    
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                        <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       </div>
-                      <span className="truncate">{employee.tacheActuelle}</span>
+                      <span className="text-foreground">{employee.contact}</span>
                     </div>
-                  )}
-                </div>
+                    
+                    {employee.specialite && (
+                      <div className="flex items-center gap-3 text-muted-foreground">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                          <Star className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <span className="truncate text-foreground">{employee.specialite}</span>
+                      </div>
+                    )}
+                    
+                    {employee.tacheActuelle && (
+                      <div className="flex items-center gap-3 text-muted-foreground">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                          <MapPin className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <span className="truncate text-foreground">{employee.tacheActuelle}</span>
+                      </div>
+                    )}
+                  </div>
 
-                {/* Actions au hover */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white via-white to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                  <div className="flex justify-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 w-9 p-0 hover:bg-blue-50 hover:text-blue-600"
-                      onClick={() => openDialog("details", employee)}
-                      title="Voir détails"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 w-9 p-0 hover:bg-emerald-50 hover:text-emerald-600"
-                      onClick={() => openDialog("edit", employee)}
-                      title="Modifier"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 w-9 p-0 hover:bg-purple-50 hover:text-purple-600"
-                      onClick={() => transferEmployee(employee)}
-                      title="Transférer"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 w-9 p-0 hover:bg-red-50 hover:text-red-600"
-                      onClick={() => openDialog("delete", employee)}
-                      title="Supprimer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  {/* Actions on hover */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-card via-card to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                    <div className="flex justify-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9 hover:bg-blue-100 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400" 
+                        title="Voir détails"
+                        onClick={() => openDialog("details", employee)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9 hover:bg-emerald-100 dark:hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400" 
+                        title="Modifier"
+                        onClick={() => openDialog("edit", employee)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9 hover:bg-purple-100 dark:hover:bg-purple-500/10 hover:text-purple-600 dark:hover:text-purple-400" 
+                        title="Transférer"
+                        onClick={() => transferEmployee(employee)}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9 hover:bg-red-100 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400" 
+                        title="Supprimer"
+                        onClick={() => openDialog("delete", employee)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </div>
       )}
@@ -959,7 +962,7 @@ export default function Employes() {
               <Button
                 type="button"
                 onClick={employeeType === "" && dialog?.type === "add" ? handleNextStep : handleSubmit}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                 disabled={
                   dialog?.type === "edit" && (
                     !formData.prenom?.trim() ||
@@ -993,48 +996,51 @@ export default function Employes() {
                 <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${getAvatarGradient(dialog.employee.id)} flex items-center justify-center text-white text-3xl font-bold shadow-xl mb-4`}>
                   {getInitials(dialog.employee.prenom, dialog.employee.nom)}
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">
+                <h3 className="text-xl font-bold text-foreground">
                   {dialog.employee.prenom} {dialog.employee.nom}
                 </h3>
-                <Badge variant={disponibiliteVariants[dialog.employee.disponibilite]} className="mt-2">
-                  {disponibiliteLabels[dialog.employee.disponibilite]}
+                <Badge 
+                  variant="outline"
+                  className={`mt-2 ${disponibiliteConfig[dialog.employee.disponibilite].badgeClass}`}
+                >
+                  {disponibiliteConfig[dialog.employee.disponibilite].label}
                 </Badge>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">ID</Label>
-                  <p className="font-semibold mt-1">{dialog.employee.id}</p>
+                  <p className="font-semibold mt-1 text-foreground">{dialog.employee.id}</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">Contact</Label>
-                  <p className="font-semibold mt-1">{dialog.employee.contact}</p>
+                  <p className="font-semibold mt-1 text-foreground">{dialog.employee.contact}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-4">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">Fonction</Label>
-                <p className="font-semibold mt-1">{dialog.employee.fonction}</p>
+                <p className="font-semibold mt-1 text-foreground">{dialog.employee.fonction}</p>
               </div>
 
               {dialog.employee.specialite && (
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide">Spécialité</Label>
-                  <p className="font-semibold mt-1">{dialog.employee.specialite}</p>
+                  <p className="font-semibold mt-1 text-foreground">{dialog.employee.specialite}</p>
                 </div>
               )}
 
               {dialog.employee.tacheActuelle && (
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                  <Label className="text-xs text-blue-600 uppercase tracking-wide">Tâche actuelle</Label>
-                  <p className="font-semibold mt-1 text-blue-900">{dialog.employee.tacheActuelle}</p>
+                <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 border border-purple-100 dark:border-purple-500/20">
+                  <Label className="text-xs text-purple-600 dark:text-purple-400 uppercase tracking-wide">Tâche actuelle</Label>
+                  <p className="font-semibold mt-1 text-purple-900 dark:text-purple-300">{dialog.employee.tacheActuelle}</p>
                 </div>
               )}
 
               {dialog.employee.dateAbsence && (
-                <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-                  <Label className="text-xs text-amber-600 uppercase tracking-wide">Absence</Label>
-                  <p className="font-semibold mt-1 text-amber-900">
+                <div className="bg-amber-50 dark:bg-amber-500/10 rounded-xl p-4 border border-amber-100 dark:border-amber-500/20">
+                  <Label className="text-xs text-amber-600 dark:text-amber-400 uppercase tracking-wide">Absence</Label>
+                  <p className="font-semibold mt-1 text-amber-900 dark:text-amber-300">
                     {dialog.employee.typeAbsence === "conge" ? "Congé" : "Maladie"} depuis le{" "}
                     {new Date(dialog.employee.dateAbsence).toLocaleDateString()}
                   </p>
@@ -1058,10 +1064,10 @@ export default function Employes() {
                 </span>.
               </div>
 
-              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4">
+              <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl p-4">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-destructive">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-red-600 dark:text-red-400">
                     <span className="font-semibold">Suppression en cascade :</span>
                     {" "}Toutes les données associées (absences, affectations) seront également supprimées.
                   </div>
@@ -1077,7 +1083,7 @@ export default function Employes() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleSubmit}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Supprimer
             </AlertDialogAction>

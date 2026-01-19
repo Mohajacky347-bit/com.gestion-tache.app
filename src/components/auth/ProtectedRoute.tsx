@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, usePathname } from 'next/navigation'
-import { useEffect, ReactNode, useMemo } from 'react'
+import { useEffect, ReactNode, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 
 interface ProtectedRouteProps {
@@ -19,6 +19,11 @@ export function ProtectedRoute({
   const { user, isLoading, isAuthenticated } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [hasMounted, setHasMounted] = useState(false)
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   // Mémoriser la vérification pour éviter les recalculs inutiles
   const shouldRender = useMemo(() => {
@@ -47,7 +52,7 @@ export function ProtectedRoute({
     }
   }, [shouldRender, redirectTo, router, user])
 
-  if (shouldRender === 'loading') {
+  if (!hasMounted || shouldRender === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

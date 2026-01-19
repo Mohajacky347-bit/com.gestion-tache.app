@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { taskService } from "@/services/task.service";
+import { freshResponse } from "@/lib/api-helpers";
 
 export const taskController = {
   async list(req: NextRequest) {
@@ -19,7 +20,8 @@ export const taskController = {
       const data = await taskService.list(
         filters.brigadeId || filters.equipeId ? filters : undefined
       );
-      return Response.json(data);
+      // Cache de 30 secondes pour les tâches (données qui changent fréquemment)
+      return freshResponse(data, 30);
     } catch (error) {
       console.error("Erreur liste tâches:", error);
       return Response.json({ error: "Erreur lors de la récupération des tâches" }, { status: 500 });

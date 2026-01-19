@@ -13,8 +13,10 @@ export const dbPool = mysql.createPool({
   password: databasePassword,
   database: databaseName,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: 20, // Augmenté pour de meilleures performances
   queueLimit: 0,
+  enableKeepAlive: true, // Garder les connexions actives
+  keepAliveInitialDelay: 0, // Réactiver immédiatement les connexions
 });
 
 export type SqlRow<T extends object> = T & Record<string, unknown>;
